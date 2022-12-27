@@ -53,27 +53,13 @@ namespace DS4WinWPF.DS4Forms.ViewModels
 
         public bool RevertDefaultProfileOnUnknown
         {
-            get => DS4Windows.Global.AutoProfileRevertDefaultProfile;
-            set => DS4Windows.Global.AutoProfileRevertDefaultProfile = value;
+            get => Global.AutoProfileRevertDefaultProfile;
+            set => Global.AutoProfileRevertDefaultProfile = value;
         }
 
         public bool UsingExpandedControllers
         {
             get => ControlService.USING_MAX_CONTROLLERS;
-        }
-
-        public Visibility ExpandedControllersVisible
-        {
-            get
-            {
-                Visibility temp = Visibility.Visible;
-                if (!ControlService.USING_MAX_CONTROLLERS)
-                {
-                    temp = Visibility.Collapsed;
-                }
-
-                return temp;
-            }
         }
 
         public AutoProfilesViewModel(AutoProfileHolder autoProfileHolder, ProfileList profileList)
@@ -406,6 +392,14 @@ namespace DS4WinWPF.DS4Forms.ViewModels
 
             return itemMoved;
         }
+        
+        public void AddExeToHIDHideWhenSaving(ProgramItem autoProf, bool addExe)
+        {
+            if (autoProf.Path.Substring((autoProf.Path.Length) - 4, 4) == ".exe") //Filter out autoprofiles that do not lead to EXEs.
+            {
+                App.rootHub.CheckHidHidePresence(autoProf.Path, autoProf.Filename, addExe);
+            }
+        }
     }
 
     public class ProgramItem
@@ -462,8 +456,8 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             }
         }
         public event EventHandler MatchedAutoProfileChanged;
-        public delegate void AutoProfileHandler(ProgramItem sender, bool added);
-        public event AutoProfileHandler AutoProfileAction;
+        //public delegate void AutoProfileHandler(ProgramItem sender, bool added);
+        //public event AutoProfileHandler AutoProfileAction;
         public string Filename { get => filename;  }
         public ImageSource Exeicon { get => exeicon; }
 
@@ -582,6 +576,20 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             {
                 if (selectedIndexCon8 == value) return;
                 selectedIndexCon8 = value;
+            }
+        }
+
+        public Visibility ExpandedControllersVisible
+        {
+            get
+            {
+                Visibility temp = Visibility.Visible;
+                if (!ControlService.USING_MAX_CONTROLLERS)
+                {
+                    temp = Visibility.Collapsed;
+                }
+
+                return temp;
             }
         }
 

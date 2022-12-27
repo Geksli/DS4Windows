@@ -236,7 +236,7 @@ namespace DS4Windows.InputDevices
         {
             get
             {
-                int result = -1;
+                int result = DEFAULT_JOINT_SLOT_NUMBER;
                 if (jointDevice != null)
                 {
                     result = jointDevice.deviceSlotNumber;
@@ -406,6 +406,11 @@ namespace DS4Windows.InputDevices
                 byte tempByte = 0;
                 long latencySum = 0;
 
+                long previousCheckTime = 0;
+                long deltaCheckElapsed;
+                double lastCheckElapsed;
+                double lastCheckTimeElapsed;
+
                 // Run continuous calibration on Gyro when starting input loop
                 sixAxis.ResetContinuousCalibration();
                 standbySw.Start();
@@ -450,18 +455,28 @@ namespace DS4Windows.InputDevices
                     readWaitEv.Reset();
 
                     inputReportErrorCount = 0;
+
+                    // Obtain stats for last accepted poll time
                     curtime = Stopwatch.GetTimestamp();
                     testelapsed = curtime - oldtime;
                     lastTimeElapsedDouble = testelapsed * (1.0 / Stopwatch.Frequency) * 1000.0;
                     lastTimeElapsed = (long)lastTimeElapsedDouble;
-                    oldtime = curtime;
                     elapsedDeltaTime = lastTimeElapsedDouble * .001;
-                    combLatency += elapsedDeltaTime;
+                    combLatency = elapsedDeltaTime;
 
-                    if (elapsedDeltaTime <= 0.005)
+                    // Obtain stats for current poll time
+                    deltaCheckElapsed = curtime - previousCheckTime;
+                    lastCheckElapsed = deltaCheckElapsed * (1.0 / Stopwatch.Frequency) * 1000.0;
+                    lastCheckTimeElapsed = lastCheckElapsed * 0.001;
+                    previousCheckTime = curtime;
+
+                    // Check if most recent poll exceeded a certain duration. Avoids false poll state?
+                    if (lastCheckTimeElapsed <= 0.005)
                     {
                         continue;
                     }
+
+                    oldtime = curtime;
 
                     if (tempLatencyCount >= 20)
                     {
@@ -482,8 +497,8 @@ namespace DS4Windows.InputDevices
                     cState.FrameCounter = (byte)(cState.PacketCounter % 128);
                     cState.ReportTimeStamp = utcNow;
 
-                    cState.elapsedTime = combLatency;
-                    cState.totalMicroSec = pState.totalMicroSec + (uint)(combLatency * 1000000);
+                    cState.elapsedTime = elapsedDeltaTime;
+                    cState.totalMicroSec = pState.totalMicroSec + (uint)(elapsedDeltaTime * 1000000);
                     combLatency = 0.0;
 
                     if ((this.featureSet & VidPidFeatureSet.NoBatteryReading) == 0)
@@ -530,6 +545,7 @@ namespace DS4Windows.InputDevices
                         cState.L1 = (tempByte & 0x40) != 0;
                         cState.L2Btn = (tempByte & 0x80) != 0;
                         cState.L2 = (byte)(cState.L2Btn ? 255 : 0);
+                        cState.L2Raw = cState.L2;
                         cState.SideL = (tempByte & 0x20) != 0;
                         cState.SideR = (tempByte & 0x10) != 0;
 
@@ -559,6 +575,7 @@ namespace DS4Windows.InputDevices
                         cState.R1 = (tempByte & 0x40) != 0;
                         cState.R2Btn = (tempByte & 0x80) != 0;
                         cState.R2 = (byte)(cState.R2Btn ? 255 : 0);
+                        cState.R2Raw = cState.R2;
                         cState.SideL = (tempByte & 0x20) != 0;
                         cState.SideR = (tempByte & 0x10) != 0;
 
@@ -773,7 +790,7 @@ namespace DS4Windows.InputDevices
             Subcommand(0x40, imuEnable, 1, checkResponse: true);
 
             // Enable High Performance Gyro mode
-            byte[] gyroModeBuffer = new byte[] { 0x03, 0x00, 0x00, 0x01 };
+            byte[] gyroModeBuffer = new byte[] { 0x03, 0x00, 0x00, 0x00 };
             //Thread.Sleep(1000);
             Subcommand(0x41, gyroModeBuffer, 4, checkResponse: true);
 
@@ -788,8 +805,8 @@ namespace DS4Windows.InputDevices
             {
                 // Suspend NFC/IR MCU state. Don't know if it will matter
                 Console.WriteLine("RESET NFC/IR MCU");
-                byte[] shitBuffer = new byte[] { 0x01 };
-                Subcommand(0x20, shitBuffer, 0, checkResponse: true);
+                byte[] shitBuffer = new byte[] { 0x00 };
+                Subcommand(0x22, shitBuffer, 0, checkResponse: true);
                 Thread.Sleep(1000);
             }
 
@@ -916,13 +933,15 @@ namespace DS4Windows.InputDevices
 
         public void PrepareRumbleData(byte[] buffer)
         {
+            // Using rumble frequency and amplitude values documented at
+            // https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/rumble_data_table.md
             //Array.Copy(commandBuffHeader, 0, buffer, 2, SUBCOMMAND_HEADER_LEN);
             buffer[0] = 0x10;
             buffer[1] = frameCount;
             frameCount = (byte)(++frameCount & 0x0F);
 
-            ushort freq_data_high = 0x0001; // 320
-            byte freq_data_low = 0x40; // 160
+            ushort freq_data_high = 0x0001; // 320 Hz
+            byte freq_data_low = 0x60; // 320 Hz
 
             int idx;
             byte amp_high;
@@ -935,6 +954,9 @@ namespace DS4Windows.InputDevices
                 amp_high = entry.high;
                 amp_low = entry.low;
 
+                // Slightly different bit shifts as HF and LF are used as written
+                // in the frequency table rather than swapping bytes in advanced.
+                // Unconventional but it results in the same output
                 buffer[2] = (byte)((freq_data_high >> 8) & 0xFF); // 0
                 buffer[3] = (byte)((freq_data_high & 0xFF) + amp_high); // 1
                 buffer[4] = (byte)(freq_data_low + (amp_low >> 8) & 0xFF); // 2
@@ -946,6 +968,10 @@ namespace DS4Windows.InputDevices
                 RumbleTableData entry = compiledRumbleTable[idx];
                 amp_high = entry.high;
                 amp_low = entry.low;
+
+                // Slightly different bit shifts as HF and LF are used as written
+                // in the frequency table rather than swapping bytes in advanced.
+                // Unconventional but it results in the same output
                 buffer[6] = (byte)((freq_data_high >> 8) & 0xFF); // 4
                 buffer[7] = (byte)((freq_data_high & 0xFF) + amp_high); // 5
                 buffer[8] = (byte)(freq_data_low + (amp_low >> 8) & 0xFF); // 6
@@ -1425,6 +1451,7 @@ namespace DS4Windows.InputDevices
                     dState.LY = cState.LY;
                     dState.L1 = cState.L1;
                     dState.L2 = cState.L2;
+                    dState.L2Raw = cState.L2Raw;
                     dState.L3 = cState.L3;
                     dState.L2Btn = cState.L2Btn;
                     dState.DpadUp = cState.DpadUp;
@@ -1451,6 +1478,7 @@ namespace DS4Windows.InputDevices
                     dState.RY = cState.RY;
                     dState.R1 = cState.R1;
                     dState.R2 = cState.R2;
+                    dState.R2Raw = cState.R2Raw;
                     dState.R3 = cState.R3;
                     dState.R2Btn = cState.R2Btn;
                     dState.Cross = cState.Cross;

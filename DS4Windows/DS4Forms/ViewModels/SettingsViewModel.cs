@@ -10,6 +10,9 @@ using System.Windows.Interop;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using System.Runtime.InteropServices;
+using DS4Windows;
+using static DS4Windows.Util;
+using Microsoft.Win32;
 
 namespace DS4WinWPF.DS4Forms.ViewModels
 {
@@ -181,6 +184,40 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             }
         }
         public event EventHandler CheckEveryUnitChanged;
+
+        public bool UseOSCServer
+        {
+            get => DS4Windows.Global.isUsingOSCServer();
+            set
+            {
+                if (DS4Windows.Global.isUsingOSCServer() == value) return;
+                DS4Windows.Global.setUsingOSCServer(value);
+                UseOSCServerChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        public event EventHandler UseOSCServerChanged;
+        public int OscPort { get => DS4Windows.Global.getOSCServerPortNum(); set => DS4Windows.Global.setOSCServerPort(value); }
+
+        public bool UseOSCSender
+        {
+            get => DS4Windows.Global.isUsingOSCSender();
+            set
+            {
+                if (DS4Windows.Global.isUsingOSCSender() == value) return;
+                DS4Windows.Global.setUsingOSCSender(value);
+                UseOSCSenderChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        public event EventHandler UseOSCSenderChanged;
+        public int OscSendPort { get => DS4Windows.Global.getOSCSenderPortNum(); set => DS4Windows.Global.setOSCSenderPort(value); }
+
+        public string OscSenderAddress
+        {
+            get => DS4Windows.Global.getOSCSenderAddress();
+            set => DS4Windows.Global.setOSCSenderAddress(value);
+        }
+
+
         public bool UseUDPServer
         {
             get => DS4Windows.Global.isUsingUDPServer();
@@ -297,8 +334,28 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             string oldvalue, string newvalue);
 
 
-        public bool HidHideInstalled { get => DS4Windows.Global.hidHideInstalled; }
-        public event EventHandler HidHideInstalledChanged;
+        public bool HidHideClientFound
+        {
+            get
+            {
+                bool result = DS4Windows.Global.hidHideInstalled &&
+                    !string.IsNullOrEmpty(DS4Windows.Util.GetHidHideClientPath());
+
+                return result;
+            }
+        }
+        public event EventHandler HidHideClientFoundChanged;
+
+        private List<MonitorChoiceListing> absMonitorChoices = new List<MonitorChoiceListing>();
+        public List<MonitorChoiceListing> AbsMonitorChoices => absMonitorChoices;
+        public event EventHandler AbsMonitorChoicesChanged;
+
+        //private string absMonitorSettingEDID = string.Empty;
+        public string AbsMonitorSettingEDID
+        {
+            get => Global.AbsoluteDisplayEDID;
+            set => Global.AbsoluteDisplayEDID = value;
+        }
 
         public SettingsViewModel()
         {
@@ -386,6 +443,8 @@ namespace DS4WinWPF.DS4Forms.ViewModels
                 showRunStartPanel = Visibility.Visible;
             }
 
+            RefreshMonitorChoices();
+
             RunAtStartupChanged += SettingsViewModel_RunAtStartupChanged;
             RunStartProgChanged += SettingsViewModel_RunStartProgChanged;
             RunStartTaskChanged += SettingsViewModel_RunStartTaskChanged;
@@ -393,8 +452,14 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             FakeExeNameChangeCompare += SettingsViewModel_FakeExeNameChangeCompare;
             UseUdpSmoothingChanged += SettingsViewModel_UseUdpSmoothingChanged;
             UseUDPServerChanged += SettingsViewModel_UseUDPServerChanged;
+            SystemEvents.DisplaySettingsChanged += SystemEvents_DisplaySettingsChanged;
 
             //CheckForUpdatesChanged += SettingsViewModel_CheckForUpdatesChanged;
+        }
+
+        private void SystemEvents_DisplaySettingsChanged(object sender, EventArgs e)
+        {
+            RefreshMonitorChoices();
         }
 
         private void SettingsViewModel_UseUDPServerChanged(object sender, EventArgs e)
@@ -532,7 +597,62 @@ namespace DS4WinWPF.DS4Forms.ViewModels
 
         public void DriverCheckRefresh()
         {
-            HidHideInstalledChanged?.Invoke(this, EventArgs.Empty);
+            HidHideClientFoundChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void RefreshMonitorChoices()
+        {
+            absMonitorChoices.Clear();
+            absMonitorChoices.Add(new MonitorChoiceListing()
+            {
+                DisplayName = "All Monitors",
+                EDID = string.Empty,
+                Index = 0,
+            });
+
+            int idx = 1;
+            foreach(DISPLAY_DEVICE tempDis in Global.GrabCurrentMonitors())
+            {
+                absMonitorChoices.Add(new MonitorChoiceListing()
+                {
+                    DisplayName = tempDis.DeviceString,
+                    EDID = tempDis.DeviceID,
+                    Index = idx,
+                });
+
+                idx++;
+            }
+
+            AbsMonitorChoicesChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public struct MonitorChoiceListing
+    {
+        private int idx;
+        public int Index
+        {
+            get => idx;
+            set => idx = value;
+        }
+
+        private string edid;
+        public string EDID
+        {
+            get => edid;
+            set => edid = value;
+        }
+
+        private string displayName;
+        public string DisplayName
+        {
+            get => displayName;
+            set => displayName = value;
+        }
+
+        public string DisplayItemString
+        {
+            get => $"{idx}: {displayName}";
         }
     }
 }

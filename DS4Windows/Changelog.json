@@ -1,9 +1,315 @@
 {
-  "latest_version": "3.0.18",
-  "latest_version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 18},
-  "updated_at": "2021-08-17T18:46:29+0000",
+  "latest_version": "3.1.12",
+  "latest_version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 12},
+  "updated_at": "2022-12-20T17:21:17+0000",
   "changelog": {
     "versions": [
+    {
+      "version_str": "3.1.12",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 12},
+      "base_header": "Version 3.1.12",
+      "release_date": "2022-12-20T17:21:17+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.12",
+          "log_text": ["* Updated NuGet packages. H.NotifyIcon.Wpf, MdXaml, NLog, System.Management",
+            "* Moved some DualSense rumble settings into Profiles. Contribution by **Kanuan**",
+            "* Ignore invalid OscPacket that might come through",
+            "* Changed counter use for Hotplug routine",
+            "* Removed old DS4 BT output counter workaround. Was only needed when using the Control endpoint",
+            "* Fixed RS outer binding",
+            "* Fixed bad copy pasta for SideR control value in special actions"],
+          "updated_at": "2022-12-20T17:21:17+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.1.11",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 11},
+      "base_header": "Version 3.1.11",
+      "release_date": "2022-11-27T05:34:04+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.11",
+          "log_text": ["* Fixed loading of language assemblies from Lang folder",
+            "* Update Traditional Chinese assembly. Contribution by **syaoran**",
+            "* Fixed snap to center Y axis coordinate for control abs mouse",
+            "* Tweaks to DS4 BT output support. Revert back to using output report 0x11",
+            "* Take payload length into account besides just array length. Strip 0xA0 data magic byte from output packet",
+            "* Added workflows for issue moderation automation. Contribution by **nefarius**",
+            "* Check current virtual desktop display bounds when restoring window position on startup",
+            "* Added Poast social link in About window",
+            "* Tweaked Switch Pro init routine. Increased initial USB delay, tweaked modeswitch command",
+            "* Removed use of old ControlService busThread. Utilize Dispatcher",
+            "* Fixed rsync ignore rules for default translation assemblies"],
+          "updated_at": "2022-11-27T05:34:04+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.1.10",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 10},
+      "base_header": "Version 3.1.10",
+      "release_date": "2022-11-07T02:41:13+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.10",
+          "log_text": ["* Added Mouse instance null check when performing PreLoadReset before profile loading",
+            "* Added absolute mouse output support for bindable controls",
+            "* Removed references to old BitTube channel",
+            "* Added WpfScreenHelper NuGet package to dependencies",
+            "* Use absolute mouse region display coordinate translation for Touchpad abs mouse",
+            "* Removed App references to MemoryMappedViewAccessor objects for cmd interface. Create as needed. Snappier app as a result"],
+          "updated_at": "2022-11-07T02:41:13+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.1.9",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 9},
+      "base_header": "Version 3.1.9",
+      "release_date": "2022-10-25T21:39:41+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.9",
+          "log_text": ["* Updated ViGEm.NET libraries. Includes check for IOCTL_DS4_AWAIT_OUTPUT_AVAILABLE status. Contribution by **Nefarius**",
+            "* Added check that AwaitBufferThread has reached inner loop before attempting to Interrupt thread",
+            "* Fixed Gyro Mouse Joystick output for vertical axes"],
+          "updated_at": "2022-10-25T21:39:41+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.1.8",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 8},
+      "base_header": "Version 3.1.8",
+      "release_date": "2022-10-24T21:05:14+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.8",
+          "log_text": ["* Added working directory info for startup lnk file",
+            "* Display input slot number in Output Slots tab",
+            "* Force update TooltipText in GUI thread",
+            "* Implementation of Touch Mouse Joystick",
+            "* Fixed log message generation when virtual pad plugin fails",
+            "* Abstract post action stick axis state changing for use with Mouse Joystick routines",
+            "* Display some input device information in Output Slots section",
+            "* Added some device number checks in ProfileSettingsVM. Avoids test index",
+            "* Fixed Keypad Decimal mapping for FakerInput",
+            "* Fixes for virtual DS4 output feedback support from ViGEm project. Contribution by **Nefarius**",
+            "* Updated ViGEmClient and ViGEm.NET libraries. Contribution by **Nefarius**",
+            "* Virtual DS4 output feedback support re-enabled. Contribution by **Nefarius**"],
+          "updated_at": "2022-10-24T21:05:14+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.1.7",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 7},
+      "base_header": "Version 3.1.7",
+      "release_date": "2022-10-12T15:14:40+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.7",
+          "log_text": ["* Added stick delta acceleration options for LS and RS",
+            "* Added extra UAC Warning to Log when using SendInput event generator. Contribution by **Yohoki**",
+            "* Changed URL parser for link generation in LogMessageDisplay window",
+            "* Changed XInput output slot display routine. Contribution by **Ygor**",
+            "* Added Touchpad virtual button activation mode options. Adds ability for activation on Touchpad Touch and Touchpad Release",
+            "* Added newer possible HidHide locations to HidHide client search routine",
+            "* Updated some NuGet packages. H.NotifyIcon.Wpf, MdXaml, Nefarius.Utilities.DeviceManagement",
+            "* Updated linked ViGEmBus version to 1.21.442.0. Now listed as a stable release",
+            "* Lowered eventDispatcherThread priority to BelowNormal; Event loop primarily used for hotplug and output device plugin and removal",
+            "* Added PowerA FUSION Wired Fightpad for PS4 to known device list. Contribution by **Ygov**",
+            "* Added Thrustmaster eSwap Pro to known device list. Contribution by **SakifX9**",
+            "* Arabic language translation updated. Contribution by **Ahmed**",
+            "* Added reWASD and VirtualHere to new exclusion filter for virtual device check. Contribution by **Nefarius**",
+            "* Changed duration for multimedia timer in app. Not really used now but it would allow sleep times less than 16 ms in app",
+            "* Unfortunately had to disable virtual DS4 feedback support again. Routine only worked reliably with one controller"],
+          "updated_at": "2022-10-12T15:14:40+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.1.6",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 6},
+      "base_header": "Version 3.1.6",
+      "release_date": "2022-09-23T01:54:08+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.6",
+          "log_text": ["* Updated DS4Windows.deps.json file",
+            "* Made sure to bundle latest Lang assembly folder"],
+          "updated_at": "2022-09-23T01:54:08+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.1.5",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 5},
+      "base_header": "Version 3.1.5",
+      "release_date": "2022-09-22T21:04:32+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.5",
+          "log_text": ["* Updated German translation. Contribution by **h1nnak**",
+            "* Added Razer Raion Fightpad PS4 to known devices. Contribution by **Ygor Vaz**",
+            "* Updated NLog package to version 5.0.4",
+            "* Updated H.NotifyIcon.Wpf package to version 2.0.64",
+            "* Updated bundled ViGEm.NET libraries",
+            "* Fixed wrong UI binding used for RSAntiSnapback. Contribution by **Kanuan**",
+            "* Fixed Hip Fire Delay settings not saving. Contribution by **Kanuan**",
+            "* Fixed preset option using wrong preset. Contribution by **Kanuan**",
+            "* Fixed Flick Stick Min Angle settings not saving. Contribution by **Kanuan**",
+            "* Set DualSense's Lightbar to white when stopping DS4Windows. Contribution by **Kanuan**",
+            "* Added AutoProfile target EXE to Hidhide. Contribution by **Yohoki**",
+            "* Added Auto-Profile Target to HidHide's Whitelist. Contribution by **Yohoki**",
+            "* Fixed LF byte for rumble frequency with Switch Pro and JoyCon",
+            "* Added reference to Nefarius.Utilities.DeviceManagement package. Contribution by **nefarius**",
+            "* Hardened virtual device check using Nefarius.Utilities.DeviceManagement package. New check detects and skips reWASD created virtual DS4 controllers. Contribution by **nefarius**",
+            "* Updated Driver Installer window to link to HidHide 1.2.98",
+            "* Display XInput slot num in output slots panel",
+            "* Added Filename to LogDebug when adding/removing EXE entry for HIDHide's whitelist. Contribution by **Yohoki**",
+            "* Updated README file with updated instructions and pictures. Contribution by **dpearson2699**",
+            "* Activated Improved Rumble Emulation for DualSense controllers using newer firmware. Set DualSense's default rumble strength level to High. Contribution by **Ygor Vaz**",
+            "* Increased max amplitude for Switch Pro rumble. Increases max rumble output",
+            "* Added initial support for updated ViGEmBus DS4 full output payload (rumble + lightbar) support. Requires latest pre-release ViGEmBus driver (AwaitRawOutputReport calls) to work."],
+          "updated_at": "2022-09-22T21:04:32+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.1.4",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 4},
+      "base_header": "Version 3.1.4",
+      "release_date": "2022-09-01T23:36:52+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.4",
+          "log_text": ["* Changed when CustomName is defined for TaskbarIcon. Fixes Custom Name Exe option with TaskbarIcon workaround"],
+          "updated_at": "2022-09-01T23:36:52+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.1.3",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 3},
+      "base_header": "Version 3.1.3",
+      "release_date": "2022-08-22T01:49:39+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.3",
+          "log_text": ["* Changed startup device init and hotplug to unify code routines",
+            "* Changed minimum sensitivity for LS and RS",
+            "* Updated H.NotifyIcon package to version 2.0.60",
+            "* Implemented workaround for H.NotifyIcon disposing TaskbarIcon instance after display scaling and RDP sessions",
+            "* Updated NLog package to version 5.0.2",
+            "* Small change to display of Binding window panels when bringing up macro recorder",
+            "* Added credit notes for vJoyInterfaceCS",
+            "* Changed ViGEmPluginFailure string text. Removed reference to old PurgeOldXInput project"],
+          "editor": "ryochan7",
+          "editors_note": ["Pushing tray icon fixes early"],
+          "updated_at": "2022-08-22T01:49:39+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.1.2",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 2},
+      "base_header": "Version 3.1.2",
+      "release_date": "2022-08-08T02:21:08+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.2",
+          "log_text": ["* Hide alpha slider from color picker window",
+            "* Changed some translation files locations based on .NET 6 locale changes",
+            "* Added OSC Server and Sender. Contribution by **GreySole**",
+            "* Updated H.NotifyIcon package",
+            "* Use new H.NotifyIcon property for handling tray icon identifier",
+            "* Removed Speaker volume feature flag from DS4 output report",
+            "* Minor tweak for ReadLocker wrapper class",
+            "* Added H.NotifyIcon to About Extras tab",
+            "* Removed DS4Audio class from project",
+            "* Disabled failed fake DS4 detection. Does not really work for its purpose based on reports",
+            "* Fixed Rename Profile window to use app theme colors",
+            "* Slightly alter how loading a temp profile is performed"],
+          "editor": "ryochan7",
+          "editors_note": ["Biking now taking up a lot of my time"],
+          "updated_at": "2022-08-08T02:21:08+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.1.1",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 1},
+      "base_header": "Version 3.1.1",
+      "release_date": "2022-07-21T10:36:14+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.1",
+          "log_text": ["* Changed gyro output mode output behavior for joined JoyCon. Run output early for Gyro Mouse and Gyro Mouse-like Joystick",
+            "* Updated many project dependency NuGet packages and DLL files",
+            "* Migrated project to use H.NotifyIcon.Wpf package",
+            "* Added extra CONNRESET IOControl call for ReceiveCallback method in UDP server. Avoids potential memory leak within UDP server in .NET 6. The call should have probably existed beforehand",
+            "* Switched main UDP message rsp to convert payload from a struct. Faster and simpler",
+            "* Added dependabot to GitHub actions. Contribution by **sitiom**",
+            "* Slightly tweaked Suspend and Resume power routines",
+            "* Fixed DS4Updater download URL redirect when automatic download fails",
+            "* Fixed initial data bindings for Auto Profile section",
+            "* Have Full Pull Dual Stage triggers use raw input range rather than interpreted. Might have to change how Full Pull is handled later",
+            "* Changed WelcomeDialog to use Windows temp folder while downloading rather than program folder. Would mainly affect when DS4Windows is run in a read-only folder (shouldn't be the case on a proper setup)",
+            "* Removed Mastodon and Minds social media links from About window. No longer support Mastodon as a whole. DS4Windows actually got banned from Minds",
+            "* Added extra project links and notes to About window",
+            "* Allow joined JoyCons to transmit unique Gyro data to UDP server. Mimics behavior of BetterJoy for two JoyCon controllers linked together",
+            "* Changed HidHide download link to point to version 1.1.50.0. Approved release",
+            "* Enforce 6 normal key maximum for fake virtual keyboard in FakerInput handler. Pretty sure some reports were from people abusing said limit",
+            "* Removed old .NET 5 workaround for single process instance checking. Use EventWaitHandleAcl.OpenExisting included with .NET 6. Contribution by **sitiom**",
+            "* Fixed touchpad counter reading with DualSense. Needed for Touchpad passthru for virtual DS4 Extended output to work. Contribution by **Kanuan**"],
+          "editor": "ryochan7",
+          "editors_note": ["JoyCon changes finally make my old Wiimote config obsolete"],
+          "updated_at": "2022-07-21T10:36:14+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.1.0",
+      "version_number_info": {"majorPart": 3, "minorPart": 1, "buildPart": 0},
+      "base_header": "Version 3.1.0",
+      "release_date": "2022-07-10T02:13:52+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.1.0",
+          "log_text": ["* Have project target .NET 6. Good performance jump. **Make sure to download the .NET 6 Runtime before updating.** [.NET 6 Runtime x64](https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/runtime-desktop-6.0.6-windows-x64-installer)",
+            "* Updated extra libs to target .NET 6",
+            "* Remove the use of the DS4Audio monitor class for select devices. Use appropriate feature flags instead",
+            "* Changed expanded output range for Gyro Mouse-like Joystick",
+            "* Added additional checks for HidHideClient path",
+            "* Change gyro mode subcommand calls for Switch Pro and JoyCon",
+            "* Added try catch for initial outputKBMHandler connect call",
+            "* Changed Backslash OEM key alias for FakerInput mapping",
+            "* Corrected current gyro toggle flags. Could have impacted profile changes",
+            "* Raise default warning intervals used for controller readings control and lightbar flashing",
+            "* Removed several DS4 BT Windows 7 workarounds. Seriously, Win 7 support is done. 8.1 is almost EOL",
+            "* Fixed use of WIN64 compilation symbol for serial reading routine. VS probably stripped it with the .NET 5 migration"],
+          "editor": "ryochan7",
+          "editors_note": ["Going my own way with this. Likey short lived support"],
+          "updated_at": "2022-07-10T02:13:52+0000"
+        }
+      ]
+    },
     {
       "version_str": "3.0.18",
       "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 18},

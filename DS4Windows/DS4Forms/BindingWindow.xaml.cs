@@ -389,6 +389,23 @@ namespace DS4WinWPF.DS4Forms
             associatedBindings.Add(mouseWheelDBtn,
                 new BindAssociation() { outputType = BindAssociation.OutType.Button, control = DS4Windows.X360Controls.WDOWN });
             mouseWheelDBtn.Click += OutputButtonBtn_Click;
+
+
+            associatedBindings.Add(absMouseUpBindBtn,
+                new BindAssociation() { outputType = BindAssociation.OutType.Button, control = DS4Windows.X360Controls.AbsMouseUp });
+            absMouseUpBindBtn.Click += OutputButtonBtn_Click;
+
+            associatedBindings.Add(absMouseDownBindBtn,
+                new BindAssociation() { outputType = BindAssociation.OutType.Button, control = DS4Windows.X360Controls.AbsMouseDown });
+            absMouseDownBindBtn.Click += OutputButtonBtn_Click;
+
+            associatedBindings.Add(absMouseLeftBindBtn,
+                new BindAssociation() { outputType = BindAssociation.OutType.Button, control = DS4Windows.X360Controls.AbsMouseLeft });
+            absMouseLeftBindBtn.Click += OutputButtonBtn_Click;
+
+            associatedBindings.Add(absMouseRightBindBtn,
+                new BindAssociation() { outputType = BindAssociation.OutType.Button, control = DS4Windows.X360Controls.AbsMouseRight });
+            absMouseRightBindBtn.Click += OutputButtonBtn_Click;
         }
 
         private void InitKeyBindings()
@@ -885,7 +902,7 @@ namespace DS4WinWPF.DS4Forms
                 bindingVM.ActionBinding.IsShift());
             box.Visibility = Visibility.Visible;
             mapBindingPanel.Visibility = Visibility.Collapsed;
-            extrasGB.IsEnabled = false;
+            extrasSidePanel.Visibility = Visibility.Collapsed;
             fullPanel.Children.Add(box);
             box.Cancel += (sender2, args) =>
             {
@@ -893,7 +910,7 @@ namespace DS4WinWPF.DS4Forms
                 fullPanel.Children.Remove(box);
                 box = null;
                 mapBindingPanel.Visibility = Visibility.Visible;
-                extrasGB.IsEnabled = true;
+                extrasSidePanel.Visibility = Visibility.Visible;
             };
 
             box.Save += (sender2, args) =>

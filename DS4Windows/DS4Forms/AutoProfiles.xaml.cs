@@ -84,6 +84,7 @@ namespace DS4WinWPF.DS4Forms
 
             //autoProfilesGrid.DataContext = autoProfVM;
             outerEditControlsPanel.DataContext = autoProfVM;
+            editControlsPanel.DataContext = autoProfVM.SelectedItem;
             this.profileList = profileList;
 
             // Sort auto profile list by application file name
@@ -311,6 +312,7 @@ namespace DS4WinWPF.DS4Forms
             if (autoProfVM.SelectedItem != null)
             {
                 editControlsPanel.DataContext = null;
+                autoProfVM.AddExeToHIDHideWhenSaving(autoProfVM.SelectedItem, false);
                 autoProfVM.RemoveAutoProfileEntry(autoProfVM.SelectedItem);
                 autoProfVM.AutoProfileHolder.Save(DS4Windows.Global.appdatapath + @"\Auto Profiles.xml");
                 autoProfVM.SelectedItem = null;
@@ -330,6 +332,7 @@ namespace DS4WinWPF.DS4Forms
                     autoProfVM.PersistAutoProfileEntry(autoProfVM.SelectedItem);
                 }
 
+                autoProfVM.AddExeToHIDHideWhenSaving(autoProfVM.SelectedItem, autoProfVM.SelectedItem.Turnoff);
                 autoProfVM.AutoProfileHolder.Save(DS4Windows.Global.appdatapath + @"\Auto Profiles.xml");
             }
         }

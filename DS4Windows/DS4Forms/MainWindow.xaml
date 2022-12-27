@@ -334,6 +334,24 @@
                                 <ComboBoxItem Content="Days" />
                             </ComboBox>
                         </StackPanel>
+                        <GroupBox Header="OSC Server" Padding="0,10,0,0" Margin="{StaticResource spaceMargin}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" MinHeight="20">
+                                    <CheckBox x:Name="useOscServerCk" Content="Enable OSC Server" IsChecked="{Binding UseOSCServer}" Click="UseOscServerCk_Click" />
+                                    <Label Content="Port" Padding="0" Margin="20,0,0,0" />
+                                    <xctk:IntegerUpDown d:IsHidden="False" x:Name="oscPortNum" IsEnabled="{Binding UseOSCServer}" MinWidth="20" Margin="8,0,0,0"
+                                            Value="{Binding OscPort, UpdateSourceTrigger=LostFocus,FallbackValue='9000'}" ButtonSpinnerLocation="Right" Increment="1" Maximum="65535" Minimum="0" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" MinHeight="20">
+                                    <CheckBox x:Name="useOscSenderCk" Content="Send Realtime Data" IsChecked="{Binding UseOSCSender}" Click="UseOscSenderCk_Click" />
+                                    <TextBox x:Name="oscSenderTxt" IsEnabled="{Binding UseOSCSender,Mode=OneWay}" Text="{Binding OscSenderAddress, UpdateSourceTrigger=LostFocus,FallbackValue='127.0.0.1'}"
+                                 Margin="8,0,0,0" />
+                                    <Label Content="Port" Padding="0" Margin="20,0,0,0" />
+                                    <xctk:IntegerUpDown d:IsHidden="False" x:Name="oscSendPort" IsEnabled="{Binding UseOSCSender}" MinWidth="20" Margin="8,0,0,0"
+                                            Value="{Binding OscSendPort, UpdateSourceTrigger=LostFocus,FallbackValue='9000'}" ButtonSpinnerLocation="Right" Increment="1" Maximum="65535" Minimum="0" />
+                                </StackPanel>
+                            </StackPanel>
+                        </GroupBox>
                         <GroupBox Header="UDP Server" Padding="0,10,0,0" Margin="{StaticResource spaceMargin}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" MinHeight="20">
@@ -385,6 +403,13 @@
                             <TextBox x:Name="fakeExeNameTxt" Text="{Binding FakeExeName, UpdateSourceTrigger=LostFocus}" MinWidth="200" />
                         </DockPanel>
 
+                        <StackPanel Orientation="Horizontal" Margin="{StaticResource spaceMargin}">
+                            <Label Content="Abs Display Monitor:" />
+                            <ComboBox ItemsSource="{Binding AbsMonitorChoices}" DisplayMemberPath="DisplayItemString" SelectedValuePath="EDID"
+                                      SelectedValue="{Binding AbsMonitorSettingEDID}" Margin="10,0,0,0">
+                            </ComboBox>
+                        </StackPanel>
+
                         <GroupBox Header="Utils" BorderThickness="2" Margin="{StaticResource spaceMargin}"
                               Padding="8" HorizontalAlignment="Left">
                             <WrapPanel HorizontalAlignment="Left" Orientation="Vertical">
@@ -405,7 +430,7 @@
                                     <TextBlock Text="{lex:Loc XInputChecker}" TextDecorations="Underline" Foreground="{DynamicResource AccentColor}" Cursor="Hand" />
                                 </Button>
                                 <Button x:Name="hidHideBtn" BorderThickness="0" Margin="0,0,4,4" Background="{x:Null}" BorderBrush="{x:Null}"
-                                    Style="{StaticResource NoBGHoverBtn}" Click="HidHideBtn_Click" Visibility="{Binding HidHideInstalled, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}" >
+                                    Style="{StaticResource NoBGHoverBtn}" Click="HidHideBtn_Click" Visibility="{Binding HidHideClientFound, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}" >
                                     <TextBlock Text="{lex:Loc HidHideConfigClient}" TextDecorations="Underline" Foreground="{DynamicResource AccentColor}" Cursor="Hand" />
                                 </Button>
                                 <Button x:Name="driverSetupBtn" BorderThickness="0" Margin="0,0,4,4" Background="{x:Null}" BorderBrush="{x:Null}"

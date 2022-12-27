@@ -8,7 +8,6 @@ using System.Diagnostics;
 
 using System.Linq;
 using System.Drawing;
-using DS4Windows.DS4Library;
 
 namespace DS4Windows
 {
@@ -176,16 +175,14 @@ namespace DS4Windows
         internal const int READ_STREAM_TIMEOUT = 3000;
         // Isolated BT report can have latency as high as 15 ms
         // due to hardware.
-        internal const int WARN_INTERVAL_BT = 40;
-        internal const int WARN_INTERVAL_USB = 20;
+        internal const int WARN_INTERVAL_BT = 500;
+        internal const int WARN_INTERVAL_USB = 100;
         // Maximum values for battery level when no USB cable is connected
         // and when a USB cable is connected
         internal const int BATTERY_MAX = 8;
         internal const int BATTERY_MAX_USB = 11;
         public const string BLANK_SERIAL = "00:00:00:00:00:00";
         public const byte SERIAL_FEATURE_ID = 18;
-        private const string SONYWA_AUDIO_SEARCHNAME = "DUALSHOCK®4 USB Wireless Adaptor";
-        private const string RAIJU_TE_AUDIO_SEARCHNAME = "Razer Raiju Tournament Edition Wired";
         protected HidDevice hDevice;
         protected string Mac;
         protected DS4State cState = new DS4State();
@@ -201,8 +198,6 @@ namespace DS4Windows
         protected readonly DS4SixAxis sixAxis = null;
         protected Thread ds4Input, ds4Output;
         protected int battery;
-        protected DS4Audio audio = null;
-        protected DS4Audio micAudio = null;
         public DateTime lastActive = DateTime.UtcNow;
         public DateTime firstActive = DateTime.UtcNow;
         protected bool charging;
@@ -384,15 +379,15 @@ namespace DS4Windows
             return featureSet;
         }
 
-        private const byte DEFAULT_BT_REPORT_TYPE = 0x15;
+        private const byte DEFAULT_BT_REPORT_TYPE = 0x11;
         private byte knownGoodBTOutputReportType = DEFAULT_BT_REPORT_TYPE;
+        private int btOutputPayloadLen = BT_OUTPUT_REPORT_LENGTH;
 
-        private const byte DEFAULT_OUTPUT_FEATURES = 0xF7;
-        private const byte COPYCAT_OUTPUT_FEATURES = 0xF3; // Remove flash flag
+        //private const byte DEFAULT_OUTPUT_FEATURES = 0xF7;
+        private const byte DEFAULT_OUTPUT_FEATURES = 0x07;
+        //private const byte COPYCAT_OUTPUT_FEATURES = 0xF3;
+        private const byte COPYCAT_OUTPUT_FEATURES = 0x03;
         private byte outputFeaturesByte = DEFAULT_OUTPUT_FEATURES;
-
-        protected bool useRumble = true;
-        public bool UseRumble { get => useRumble; set => useRumble = value; }
 
         public int Battery => battery;
         public delegate void BatteryUpdateHandler(object sender, EventArgs e);
@@ -556,16 +551,13 @@ namespace DS4Windows
             HidD_SetOutputReport,
         }
 
-        private BTOutputReportMethod btOutputMethod;
-        public BTOutputReportMethod BTOutputMethod { get => btOutputMethod; set => btOutputMethod = value; }
-
         protected InputDevices.InputDeviceType deviceType;
         public InputDevices.InputDeviceType DeviceType { get => deviceType; }
 
         protected GyroMouseSens gyroMouseSensSettings;
         public virtual GyroMouseSens GyroMouseSensSettings { get => gyroMouseSensSettings; }
 
-        protected int deviceSlotNumber = -1;
+        protected int deviceSlotNumber = DEFAULT_JOINT_SLOT_NUMBER;
         public int DeviceSlotNumber
         {
             get => deviceSlotNumber;
@@ -647,7 +639,7 @@ namespace DS4Windows
 
         public virtual void PostInit()
         {
-            HidDevice hidDevice = hDevice;
+            //HidDevice hidDevice = hDevice;
             deviceType = InputDevices.InputDeviceType.DS4;
             gyroMouseSensSettings = new GyroMouseSens();
             optionsStore = nativeOptionsStore = new DS4ControllerOptions(deviceType);
@@ -661,35 +653,11 @@ namespace DS4Windows
                 if (conType == ConnectionType.USB)
                 {
                     warnInterval = WARN_INTERVAL_USB;
-                    HidDeviceAttributes tempAttr = hDevice.Attributes;
-                    if (tempAttr.VendorId == 0x054C && tempAttr.ProductId == 0x09CC)
-                    {
-                        audio = new DS4Audio(searchDeviceInstance: hidDevice.ParentPath);
-                        micAudio = new DS4Audio(DS4Library.CoreAudio.DataFlow.Capture,
-                            searchDeviceInstance: hidDevice.ParentPath);
-                    }
-                    else if (tempAttr.VendorId == DS4Devices.RAZER_VID &&
-                        tempAttr.ProductId == 0x1007)
-                    {
-                        audio = new DS4Audio(searchDeviceInstance: hidDevice.ParentPath);
-                        micAudio = new DS4Audio(DS4Library.CoreAudio.DataFlow.Capture,
-                            searchDeviceInstance: hidDevice.ParentPath);
-                    }
-                    else if (featureSet.HasFlag(VidPidFeatureSet.MonitorAudio))
-                    {
-                        audio = new DS4Audio(searchDeviceInstance: hidDevice.ParentPath);
-                        micAudio = new DS4Audio(DS4Library.CoreAudio.DataFlow.Capture,
-                            searchDeviceInstance: hidDevice.ParentPath);
-                    }
-
                     synced = true;
                 }
                 else
                 {
                     warnInterval = WARN_INTERVAL_BT;
-                    audio = new DS4Audio(searchDeviceInstance: hidDevice.ParentPath);
-                    micAudio = new DS4Audio(DS4Library.CoreAudio.DataFlow.Capture,
-                        searchDeviceInstance: hidDevice.ParentPath);
                     runCalib = synced = isValidSerial();
                 }
             }
@@ -703,12 +671,18 @@ namespace DS4Windows
                     // Default DS4 logic while writing data to gamepad
                     outputReport = new byte[BT_OUTPUT_REPORT_LENGTH];
                     outReportBuffer = new byte[BT_OUTPUT_REPORT_LENGTH];
+
+                    // Buffer len and output report payload len will differ
+                    btOutputPayloadLen = BT_OUTPUT_REPORT_0x11_LENGTH;
                 }
                 else
                 {
                     // Use the gamepad specific output buffer size (but minimum of 15 bytes to avoid out-of-index errors in this app)
                     outputReport = new byte[hDevice.Capabilities.OutputReportByteLength <= 15 ? 15 : hDevice.Capabilities.OutputReportByteLength];
                     outReportBuffer = new byte[hDevice.Capabilities.OutputReportByteLength <= 15 ? 15 : hDevice.Capabilities.OutputReportByteLength];
+
+                    // Use custom buffer len
+                    btOutputPayloadLen = outputReport.Length;
                 }
                 warnInterval = WARN_INTERVAL_BT;
                 synced = isValidSerial();
@@ -722,15 +696,19 @@ namespace DS4Windows
                 hDevice.OpenFileStream(outputReport.Length);
             }
 
-            if (conType == ConnectionType.BT &&
-                !featureSet.HasFlag(VidPidFeatureSet.NoOutputData) && !featureSet.HasFlag(VidPidFeatureSet.OnlyOutputData0x05))
-            {
-                CheckOutputReportTypes();
-            }
+            // Temporarily disable this check as it does not seem to help
+            // detect fake DS4 controllers
+            //if (conType == ConnectionType.BT &&
+            //    !featureSet.HasFlag(VidPidFeatureSet.NoOutputData) &&
+            //    !featureSet.HasFlag(VidPidFeatureSet.OnlyOutputData0x05))
+            //{
+            //    CheckOutputReportTypes();
+            //}
 
             sendOutputReport(true, true, false); // initialize the output report (don't force disconnect the gamepad on initialization even if writeData fails because some fake DS4 gamepads don't support writeData over BT)
         }
 
+        // TODO: Possibly remove method
         private void CheckOutputReportTypes()
         {
             // Use Tuple here for convenience
@@ -843,15 +821,6 @@ namespace DS4Windows
             {
                 if (conType == ConnectionType.BT)
                 {
-                    if (btOutputMethod == BTOutputReportMethod.HidD_SetOutputReport)
-                    {
-                        ds4Output = new Thread(performDs4Output);
-                        ds4Output.Priority = ThreadPriority.Normal;
-                        ds4Output.Name = "DS4 Output thread: " + Mac;
-                        ds4Output.IsBackground = true;
-                        ds4Output.Start();
-                    }
-
                     timeoutCheckThread = new Thread(TimeoutTestThread);
                     timeoutCheckThread.Priority = ThreadPriority.BelowNormal;
                     timeoutCheckThread.Name = "DS4 Timeout thread: " + Mac;
@@ -930,16 +899,8 @@ namespace DS4Windows
                 //if ((this.featureSet & VidPidFeatureSet.OnlyOutputData0x05) == 0)
                 //    return hDevice.WriteOutputReportViaControl(outputReport);
 
-                if (btOutputMethod == BTOutputReportMethod.WriteFile)
-                {
-                    // Use Interrupt endpoint for almost BT DS4 connected devices now
-                    return hDevice.WriteOutputReportViaInterrupt(outputBuffer, READ_STREAM_TIMEOUT);
-                }
-                else
-                {
-                    // Mainly needed for Windows 7 support
-                    return hDevice.WriteOutputReportViaControl(outputBuffer);
-                }
+                // Use Interrupt endpoint for BT DS4 connected devices now
+                return hDevice.WriteOutputReportViaInterrupt(outputBuffer, READ_STREAM_TIMEOUT);
             }
             else
             {
@@ -954,16 +915,8 @@ namespace DS4Windows
                 //if ((this.featureSet & VidPidFeatureSet.OnlyOutputData0x05) == 0)
                 //    return hDevice.WriteOutputReportViaControl(outputReport);
 
-                if (btOutputMethod == BTOutputReportMethod.WriteFile)
-                {
-                    // Use Interrupt endpoint for almost BT DS4 connected devices now
-                    return hDevice.WriteOutputReportViaInterrupt(outputReport, READ_STREAM_TIMEOUT);
-                }
-                else
-                {
-                    // Mainly needed for Windows 7 support
-                    return hDevice.WriteOutputReportViaControl(outputReport);
-                }
+                // Use Interrupt endpoint for almost BT DS4 connected devices now
+                return hDevice.WriteOutputReportViaInterrupt(outputReport, READ_STREAM_TIMEOUT);
             }
             else
             {
@@ -977,65 +930,6 @@ namespace DS4Windows
         private const int OUTPUT_MIN_COUNT_BT = 3;
         private byte[] outputBTCrc32Head = new byte[] { 0xA2 };
         protected readonly Stopwatch standbySw = new Stopwatch();
-        private unsafe void performDs4Output()
-        {
-            try
-            {
-                int lastError = 0;
-                bool result = false, currentRumble = false;
-                while (!exitOutputThread)
-                {
-                    if (currentRumble)
-                    {
-                        lock(outputReport)
-                        {
-                            result = writeOutput();
-                        }
-
-                        currentRumble = false;
-                        if (!result)
-                        {
-                            currentRumble = true;
-                            exitOutputThread = true;
-                            int thisError = Marshal.GetLastWin32Error();
-                            if (lastError != thisError)
-                            {
-                                Console.WriteLine(Mac.ToString() + " " + System.DateTime.UtcNow.ToString("o") + "> encountered write failure: " + thisError);
-                                //Log.LogToGui(Mac.ToString() + " encountered write failure: " + thisError, true);
-                                lastError = thisError;
-                            }
-                        }
-                    }
-
-                    if (!currentRumble)
-                    {
-                        lastError = 0;
-                        lock (outReportBuffer)
-                        {
-                            Monitor.Wait(outReportBuffer);
-                            fixed (byte* byteR = outputReport, byteB = outReportBuffer)
-                            {
-                                for (int i = 0, arlen = BT_OUTPUT_CHANGE_LENGTH; i < arlen; i++)
-                                    byteR[i] = byteB[i];
-                            }
-                            //outReportBuffer.CopyTo(outputReport, 0);
-                            if (outputPendCount > 1)
-                                outputPendCount--;
-                            else if (outputPendCount == 1)
-                            {
-                                outputPendCount--;
-                                standbySw.Restart();
-                            }
-                            else
-                                standbySw.Restart();
-                        }
-
-                        currentRumble = true;
-                    }
-                }
-            }
-            catch (ThreadInterruptedException) { }
-        }
 
         /** Is the device alive and receiving valid sensor input reports? */
         public virtual bool IsAlive()
@@ -1096,9 +990,7 @@ namespace DS4Windows
                 timeoutEvent = false;
                 ds4InactiveFrame = true;
                 idleInput = true;
-                bool syncWriteReport = conType != ConnectionType.BT ||
-                    btOutputMethod == BTOutputReportMethod.WriteFile;
-                //bool syncWriteReport = true;
+                bool syncWriteReport = true;
                 bool forceWrite = false;
 
                 int maxBatteryValue = 0;
@@ -1280,6 +1172,8 @@ namespace DS4Windows
                     cState.RY = inputReport[4];
                     cState.L2 = inputReport[8];
                     cState.R2 = inputReport[9];
+                    cState.L2Raw = cState.L2;
+                    cState.R2Raw = cState.R2;
 
                     tempByte = inputReport[5];
                     cState.Triangle = (tempByte & (1 << 7)) != 0;
@@ -1591,9 +1485,10 @@ namespace DS4Windows
                 //outReportBuffer[0] = 0x15;
                 //outReportBuffer[1] = (byte)(0x80 | btPollRate); // input report rate
                 outReportBuffer[1] = (byte)(0xC0 | btPollRate); // input report rate
-                outReportBuffer[2] = 0xA0;
+                //outReportBuffer[2] = 0xA0;
 
-                // enable rumble (0x01), lightbar (0x02), flash (0x04). Default: 0xF7
+                // Headphone volume L (0x10), Headphone volume R (0x20), Mic volume (0x40), Speaker volume (0x80)
+                // enable rumble (0x01), lightbar (0x02), flash (0x04). Default: 0x07
                 outReportBuffer[3] = outputFeaturesByte;
                 outReportBuffer[4] = 0x04;
 
@@ -1622,7 +1517,8 @@ namespace DS4Windows
             else
             {
                 outReportBuffer[0] = 0x05;
-                // enable rumble (0x01), lightbar (0x02), flash (0x04). Default: 0xF7
+                // Headphone volume L (0x10), Headphone volume R (0x20), Mic volume (0x40), Speaker volume (0x80)
+                // enable rumble (0x01), lightbar (0x02), flash (0x04). Default: 0x07
                 outReportBuffer[1] = outputFeaturesByte;
                 outReportBuffer[2] = 0x04;
                 outReportBuffer[4] = currentHap.rumbleState.RumbleMotorStrengthRightLightFast; // fast motor
@@ -1640,14 +1536,6 @@ namespace DS4Windows
                 }
 
                 haptime = haptime || change;
-                if (haptime && audio != null)
-                {
-                    // Headphone volume levels
-                    outReportBuffer[19] = outReportBuffer[20] =
-                        Convert.ToByte(audio.getVolume());
-                    // Microphone volume level
-                    outReportBuffer[21] = Convert.ToByte(micAudio.getVolume());
-                }
             }
         }
 
@@ -1675,15 +1563,8 @@ namespace DS4Windows
             }
 
             //bool output = outputPendCount > 0, change = force;
-            bool output = outputPendCount > 0, change = force;
-            //bool output = false, change = force;
-            bool haptime = output || standbySw.ElapsedMilliseconds >= 4000L;
-
-            if (usingBT &&
-                btOutputMethod == BTOutputReportMethod.HidD_SetOutputReport)
-            {
-                Monitor.Enter(outReportBuffer);
-            }
+            bool change = force;
+            bool haptime = force || standbySw.ElapsedMilliseconds >= 4000L;
 
             PrepareOutputReportInner(ref change, ref haptime);
 
@@ -1696,19 +1577,11 @@ namespace DS4Windows
 
             if (synchronous)
             {
-                if (output || haptime)
+                if (haptime)
                 {
                     if (change)
                     {
-                        outputPendCount = OUTPUT_MIN_COUNT_BT;
                         standbySw.Reset();
-                    }
-                    else if (outputPendCount > 1)
-                        outputPendCount--;
-                    else if (outputPendCount == 1)
-                    {
-                        outputPendCount--;
-                        standbySw.Restart();
                     }
                     else
                         standbySw.Restart();
@@ -1716,17 +1589,13 @@ namespace DS4Windows
 
                     if (usingBT)
                     {
-                        if (btOutputMethod == BTOutputReportMethod.HidD_SetOutputReport)
-                        {
-                            Monitor.Enter(outputReport);
-                        }
-
                         outReportBuffer.CopyTo(outputReport, 0);
 
                         if ((this.featureSet & VidPidFeatureSet.OnlyOutputData0x05) == 0)
                         {
                             // Need to calculate and populate CRC-32 data so controller will accept the report
-                            int len = outputReport.Length;
+                            //int len = outputReport.Length;
+                            int len = btOutputPayloadLen;
                             uint calcCrc32 = ~Crc32Algorithm.Compute(outputBTCrc32Head);
                             calcCrc32 = ~Crc32Algorithm.CalculateBasicHash(ref calcCrc32, ref outputReport, 0, len - 4);
                             outputReport[len - 4] = (byte)calcCrc32;
@@ -1756,14 +1625,7 @@ namespace DS4Windows
                     }
                     catch { } // If it's dead already, don't worry about it.
 
-                    if (usingBT)
-                    {
-                        if (btOutputMethod == BTOutputReportMethod.HidD_SetOutputReport)
-                        {
-                            Monitor.Exit(outputReport);
-                        }
-                    }
-                    else
+                    if (!usingBT)
                     {
                         lock(outReportBuffer)
                         {
@@ -1777,22 +1639,15 @@ namespace DS4Windows
                 //for (int i = 0, arlen = outputReport.Length; !change && i < arlen; i++)
                 //    change = outputReport[i] != outReportBuffer[i];
 
-                if (output || haptime)
+                if (haptime)
                 {
                     if (change)
                     {
-                        outputPendCount = OUTPUT_MIN_COUNT_BT;
                         standbySw.Reset();
                     }
 
                     Monitor.Pulse(outReportBuffer);
                 }
-            }
-
-            if (usingBT &&
-                btOutputMethod == BTOutputReportMethod.HidD_SetOutputReport)
-            {
-                Monitor.Exit(outReportBuffer);
             }
 
             if (quitOutputThread)
@@ -2036,6 +1891,11 @@ namespace DS4Windows
         public void SetLightbarState(ref DS4LightbarState lightState)
         {
             currentHap.lightbarState = lightState;
+        }
+
+        public ref DS4LightbarState GetLightbarStateRef()
+        {
+            return ref currentHap.lightbarState;
         }
 
         public void SetRumbleState(ref DS4ForceFeedbackState rumbleState)

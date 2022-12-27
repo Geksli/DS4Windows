@@ -12,8 +12,8 @@ namespace DS4WinWPF.DS4Forms
         {
             InitializeComponent();
 
-            string version = Global.exeversion;
-            headerLb.Content += version + ")";
+            string version = $"{Global.exeversion})";
+            headerLb.Content += version;
         }
 
         private void ChangeLogLink_Click(object sender, RoutedEventArgs e)
@@ -66,29 +66,64 @@ namespace DS4WinWPF.DS4Forms
             Util.StartProcessHelper("https://www.youtube.com/channel/UCIoUA_XLlCSZbvZGeg3Byeg");
         }
 
-        private void BittubeSocialBtn_Click(object sender, RoutedEventArgs e)
-        {
-            Util.StartProcessHelper("https://bittube.tv/profile/ds4windows");
-        }
-
         private void TwitterSocialBtn_Click(object sender, RoutedEventArgs e)
         {
             Util.StartProcessHelper("https://twitter.com/ds4windows");
         }
 
-        private void MastodonSocialBtn_Click(object sender, RoutedEventArgs e)
-        {
-            Util.StartProcessHelper("https://fosstodon.org/@ds4windows");
-        }
-
-        private void MindsSocialBtn_Click(object sender, RoutedEventArgs e)
-        {
-            Util.StartProcessHelper("https://www.minds.com/ds4windows/");
-        }
-
         private void GithubSocialBtn_Click(object sender, RoutedEventArgs e)
         {
             Util.StartProcessHelper("https://github.com/Ryochan7/DS4Windows");
+        }
+
+        private void ViGEmBusLink_Click(object sender, RoutedEventArgs e)
+        {
+            Util.StartProcessHelper("https://vigem.org/");
+        }
+
+        private void HidHideLink_Click(object sender, RoutedEventArgs e)
+        {
+            Util.StartProcessHelper("https://vigem.org/projects/HidHide/");
+        }
+
+        private void Crc32Link_Click(object sender, RoutedEventArgs e)
+        {
+            Util.StartProcessHelper("https://github.com/dariogriffo/Crc32");
+        }
+
+        private void OneEuroLink_Click(object sender, RoutedEventArgs e)
+        {
+            Util.StartProcessHelper("http://cristal.univ-lille.fr/~casiez/1euro/");
+        }
+
+        private void FakerInputLink_Click(object sender, RoutedEventArgs e)
+        {
+            Util.StartProcessHelper("https://github.com/Ryochan7/FakerInput/");
+        }
+
+        private void HNotifyIconLink_Click(object sender, RoutedEventArgs e)
+        {
+            Util.StartProcessHelper("https://github.com/HavenDV/H.NotifyIcon/");
+        }
+
+        private void VJoyInterfaceLink_Click(object sender, RoutedEventArgs e)
+        {
+            Util.StartProcessHelper("https://github.com/shauleiz/vJoy/tree/master/apps/common/vJoyInterfaceCS");
+        }
+
+        private void DeviceManagementLink_Click(object sender, RoutedEventArgs e)
+        {
+            Util.StartProcessHelper("https://github.com/nefarius/Nefarius.Utilities.DeviceManagement");
+        }
+
+        private void BuyCoffeeLink_Click(object sender, RoutedEventArgs e)
+        {
+            Util.StartProcessHelper("https://buymeacoffee.com/ryochan7");
+        }
+
+        private void PoastSocialBtn_Click(object sender, RoutedEventArgs e)
+        {
+            Util.StartProcessHelper("https://poa.st/@DS4Windows");
         }
     }
 

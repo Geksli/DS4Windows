@@ -16,27 +16,27 @@ namespace DS4WinWPF.DS4Forms
         private const string InstallerDL1_16 =
             "https://github.com/ViGEm/ViGEmBus/releases/download/setup-v1.16.116/ViGEmBus_Setup_1.16.116.exe";
         private const string InstallerDLX64 =
-            "https://github.com/ViGEm/ViGEmBus/releases/download/setup-v1.17.333/ViGEmBusSetup_x64.msi";
+            "https://github.com/ViGEm/ViGEmBus/releases/download/v1.21.442.0/ViGEmBus_1.21.442_x64_x86_arm64.exe";
         private const string InstallerDLX86 =
-            "https://github.com/ViGEm/ViGEmBus/releases/download/setup-v1.17.333/ViGEmBusSetup_x86.msi";
+            "https://github.com/ViGEm/ViGEmBus/releases/download/v1.21.442.0/ViGEmBus_1.21.442_x64_x86_arm64.exe";
 
-        private const string InstallerHidHideX64 = "https://github.com/ViGEm/HidHide/releases/download/v1.0.30.0/HidHideMSI.msi";
+        private const string InstallerHidHideX64 = "https://github.com/ViGEm/HidHide/releases/download/v1.2.98.0/HidHide_1.2.98_x64.exe";
         private const string InstallerFakerInputX64 = "https://github.com/Ryochan7/FakerInput/releases/download/v0.1.0/FakerInput_0.1.0_x64.msi";
         private const string InstallerFakerInputX86 = "https://github.com/Ryochan7/FakerInput/releases/download/v0.1.0/FakerInput_0.1.0_x86.msi";
 
         private const string InstFileName1_16 = "ViGEmBus_Setup_1.16.116.exe";
-        private const string InstFileNameX64 = "ViGEmBusSetup_x64.msi";
-        private const string InstFileNameX86 = "ViGEmBusSetup_x86.msi";
+        private string InstFileNameX64 = Path.GetFileName(InstallerDLX64);
+        private string InstFileNameX86 = Path.GetFileName(InstallerDLX86);
         private string tempInstFileName;
 
-        private const string InstHidHideFileNameX64 = "HidHideMSI.msi";
+        private string InstHidHideFileNameX64 = Path.GetFileName(InstallerHidHideX64);
 
         private string installFakerInputDL = "";
         private string instFakerInputFileName = "";
 
         // Default to latest known ViGEmBus installer
         private string installDL = InstallerDLX64;
-        private string installFileName = InstFileNameX64;
+        private string installFileName;
 
         Process monitorProc;
         NonFormTimer monitorTimer;
@@ -51,6 +51,9 @@ namespace DS4WinWPF.DS4Forms
             }
 
             InitializeComponent();
+
+            // Establish default before system checks
+            installFileName = InstFileNameX64;
 
             // Run checks for compatible version of ViGEmBus
             if (!DS4Windows.Global.IsWin10OrGreater())
@@ -86,29 +89,18 @@ namespace DS4WinWPF.DS4Forms
                 step5FakerInputPanel.IsEnabled = false;
             }
 
-            tempInstFileName = DS4Windows.Global.exedirpath + $"\\{installFileName}.tmp";
+            tempInstFileName = Path.Combine(Path.GetTempPath(), $"{installFileName}.tmp");
 
-            // Disable Xbox 360 driver installer button if running on Windows 8 or greater.
-            // Driver comes pre-installed on a standard OS install
-            if (DS4Windows.Global.IsWin8OrGreater())
-            {
-                step2Btn.IsEnabled = false;
-            }
-
-            // HidHide only works on Windows 10 x64
+            // HidHide requires Windows 10 (or later) x64
             if (!IsHidHideControlCompatible())
             {
                 step4HidHidePanel.IsEnabled = false;
             }
-
-            // Just leave panel disabled for now. Download link does not
-            // exist currently
-            //step5FakerInputPanel.IsEnabled = false;
         }
 
         private bool IsHidHideControlCompatible()
         {
-            // HidHide only works on Windows 10 x64
+            // HidHide requires Windows 10 (or later) x64
             return DS4Windows.Global.IsWin10OrGreater() &&
                 Environment.Is64BitOperatingSystem;
         }
@@ -127,9 +119,10 @@ namespace DS4WinWPF.DS4Forms
 
         private void VigemInstallBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (File.Exists(DS4Windows.Global.exedirpath + $"\\{installFileName}"))
+            string tempFilePath = Path.Combine(Path.GetTempPath(), $"{installFileName}");
+            if (File.Exists(tempFilePath))
             {
-                File.Delete(DS4Windows.Global.exedirpath + $"\\{installFileName}");
+                File.Delete(tempFilePath);
             }
 
             if (File.Exists(tempInstFileName))
@@ -160,7 +153,7 @@ namespace DS4WinWPF.DS4Forms
                 //Console.WriteLine(x.PercentComplete.ToString("P"));
             });
 
-            string filename = DS4Windows.Global.exedirpath + $"\\{installFileName}";
+            string finalFilename = Path.Combine(Path.GetTempPath(), $"{installFileName}");
             bool success = false;
             using (var downloadStream = new FileStream(tempInstFileName, FileMode.CreateNew))
             {
@@ -171,14 +164,14 @@ namespace DS4WinWPF.DS4Forms
 
             if (success)
             {
-                File.Move(tempInstFileName, filename);
+                File.Move(tempInstFileName, finalFilename);
             }
             success = false; // Reset for later check
 
-            if (File.Exists(DS4Windows.Global.exedirpath + $"\\{installFileName}"))
+            if (File.Exists(finalFilename))
             {
                 //vigemInstallBtn.Content = Properties.Resources.OpeningInstaller;
-                ProcessStartInfo startInfo = new ProcessStartInfo(DS4Windows.Global.exedirpath + $"\\{installFileName}");
+                ProcessStartInfo startInfo = new ProcessStartInfo(finalFilename);
                 startInfo.UseShellExecute = true; // Needed to run program as admin
                 monitorProc = Process.Start(startInfo);
                 vigemInstallBtn.Content = Properties.Resources.Installing;
@@ -225,7 +218,8 @@ namespace DS4WinWPF.DS4Forms
                     }), null);
                 }
 
-                File.Delete(DS4Windows.Global.exedirpath + $"\\{installFileName}");
+                string currentFilePath = Path.Combine(Path.GetTempPath(), $"{installFileName}");
+                File.Delete(currentFilePath);
                 ((NonFormTimer)sender).Stop();
                 finished = true;
             }
@@ -248,12 +242,13 @@ namespace DS4WinWPF.DS4Forms
 
         private void HidHideInstall_Click(object sender, RoutedEventArgs e)
         {
-            if (File.Exists(DS4Windows.Global.exedirpath + $"\\{InstHidHideFileNameX64}"))
+            string tempFilePath = Path.Combine(Path.GetTempPath(), $"{InstHidHideFileNameX64}");
+            if (File.Exists(tempFilePath))
             {
-                File.Delete(DS4Windows.Global.exedirpath + $"\\{InstHidHideFileNameX64}");
+                File.Delete(tempFilePath);
             }
 
-            string tempInstHidFileName = DS4Windows.Global.exedirpath + $"\\{InstHidHideFileNameX64}.tmp";
+            string tempInstHidFileName = Path.Combine(Path.GetTempPath(), $"{InstHidHideFileNameX64}.tmp");
             if (File.Exists(tempInstHidFileName))
             {
                 File.Delete(tempInstHidFileName);
@@ -275,8 +270,8 @@ namespace DS4WinWPF.DS4Forms
                 //Console.WriteLine(x.PercentComplete.ToString("P"));
             });
 
-            string tempInstHidFileName = DS4Windows.Global.exedirpath + $"\\{InstHidHideFileNameX64}.tmp";
-            string filename = DS4Windows.Global.exedirpath + $"\\{InstHidHideFileNameX64}";
+            string tempInstHidFileName = Path.Combine(Path.GetTempPath(), $"{InstHidHideFileNameX64}.tmp");
+            string finalFilename = Path.Combine(Path.GetTempPath(), $"{InstHidHideFileNameX64}");
             bool success = false;
             using (var downloadStream = new FileStream(tempInstHidFileName, FileMode.CreateNew))
             {
@@ -287,14 +282,14 @@ namespace DS4WinWPF.DS4Forms
 
             if (success)
             {
-                File.Move(tempInstHidFileName, filename);
+                File.Move(tempInstHidFileName, finalFilename);
             }
             success = false; // Reset for later check
 
-            if (File.Exists(DS4Windows.Global.exedirpath + $"\\{InstHidHideFileNameX64}"))
+            if (File.Exists(finalFilename))
             {
                 //vigemInstallBtn.Content = Properties.Resources.OpeningInstaller;
-                ProcessStartInfo startInfo = new ProcessStartInfo(DS4Windows.Global.exedirpath + $"\\{InstHidHideFileNameX64}");
+                ProcessStartInfo startInfo = new ProcessStartInfo(finalFilename);
                 startInfo.UseShellExecute = true; // Needed to run program as admin
                 monitorProc = Process.Start(startInfo);
                 hidHideInstallBtn.Content = Properties.Resources.Installing;
@@ -338,7 +333,8 @@ namespace DS4WinWPF.DS4Forms
                     }), null);
                 }
 
-                File.Delete(DS4Windows.Global.exedirpath + $"\\{InstHidHideFileNameX64}");
+                string currentFilePath = Path.Combine(Path.GetTempPath(), $"{InstHidHideFileNameX64}");
+                File.Delete(currentFilePath);
                 ((NonFormTimer)sender).Stop();
                 finished = true;
             }
@@ -351,12 +347,13 @@ namespace DS4WinWPF.DS4Forms
 
         private void FakerInputInstallBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (File.Exists(DS4Windows.Global.exedirpath + $"\\{instFakerInputFileName}"))
+            string tempFilePath = Path.Combine(Path.GetTempPath(), $"{installFileName}");
+            if (File.Exists(tempFilePath))
             {
-                File.Delete(DS4Windows.Global.exedirpath + $"\\{instFakerInputFileName}");
+                File.Delete(tempFilePath);
             }
 
-            string tempInstFakerInputName = DS4Windows.Global.exedirpath + $"\\{instFakerInputFileName}.tmp";
+            string tempInstFakerInputName = Path.Combine(Path.GetTempPath(), $"{instFakerInputFileName}.tmp");
             if (File.Exists(tempInstFakerInputName))
             {
                 File.Delete(tempInstFakerInputName);
@@ -378,8 +375,9 @@ namespace DS4WinWPF.DS4Forms
                 //Console.WriteLine(x.PercentComplete.ToString("P"));
             });
 
-            string tempInstFakerInputFileName = DS4Windows.Global.exedirpath + $"\\{instFakerInputFileName}.tmp";
-            string filename = DS4Windows.Global.exedirpath + $"\\{instFakerInputFileName}";
+            string tempInstFakerInputFileName = Path.Combine(Path.GetTempPath(),
+                $"{instFakerInputFileName}.tmp");
+            string finalFilename = Path.Combine(Path.GetTempPath(), $"{instFakerInputFileName}");
             bool success = false;
             using (var downloadStream = new FileStream(tempInstFakerInputFileName, FileMode.CreateNew))
             {
@@ -390,14 +388,14 @@ namespace DS4WinWPF.DS4Forms
 
             if (success)
             {
-                File.Move(tempInstFakerInputFileName, filename);
+                File.Move(tempInstFakerInputFileName, finalFilename);
             }
             success = false; // Reset for later check
 
-            if (File.Exists(DS4Windows.Global.exedirpath + $"\\{instFakerInputFileName}"))
+            if (File.Exists(finalFilename))
             {
                 //vigemInstallBtn.Content = Properties.Resources.OpeningInstaller;
-                ProcessStartInfo startInfo = new ProcessStartInfo(DS4Windows.Global.exedirpath + $"\\{instFakerInputFileName}");
+                ProcessStartInfo startInfo = new ProcessStartInfo(finalFilename);
                 startInfo.UseShellExecute = true; // Needed to run program as admin
                 monitorProc = Process.Start(startInfo);
                 fakerInputInstallBtn.Content = Properties.Resources.Installing;
@@ -441,7 +439,8 @@ namespace DS4WinWPF.DS4Forms
                     }), null);
                 }
 
-                File.Delete(DS4Windows.Global.exedirpath + $"\\{instFakerInputFileName}");
+                string currentFilePath = Path.Combine(Path.GetTempPath(), $"{instFakerInputFileName}");
+                File.Delete(currentFilePath);
                 ((NonFormTimer)sender).Stop();
                 finished = true;
             }

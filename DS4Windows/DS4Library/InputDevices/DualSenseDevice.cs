@@ -109,13 +109,26 @@ namespace DS4Windows.InputDevices
             }
         }
 
-        public enum HapticIntensity : uint
+        public enum RumbleEmulationMode
         {
-            Low,
-            Medium,
-            High,
+            Accurate,
+            Legacy,
+            Disabled,
+            Passthru,
         }
-
+   
+        public enum HapticPowerLevelFriendlyName : ushort
+        {
+            Str100 = 0,
+            Str87 = 1,
+            Str75 = 2,
+            Str62 = 3,
+            Str50 = 4,
+            Str37 = 5,
+            Str25 = 6,
+            Str12 = 7,
+        }
+        
         private const int BT_REPORT_OFFSET = 2;
         private InputReportDataBytes dataBytes;
         protected new const int BT_OUTPUT_REPORT_LENGTH = 78;
@@ -144,25 +157,19 @@ namespace DS4Windows.InputDevices
 
         private byte activePlayerLEDMask = 0x00;
 
-        private byte hapticsIntensityByte = 0x02;
-        public HapticIntensity HapticChoice {
-            set
-            {
-                switch (value)
-                {
-                    case HapticIntensity.Low:
-                        hapticsIntensityByte = 0x05;
-                        break;
-                    case HapticIntensity.High:
-                        hapticsIntensityByte = 0x00;
-                        break;
-                    case HapticIntensity.Medium:
-                    default:
-                        hapticsIntensityByte = 0x02;
-                        break;
-                }
-            }
+        private byte hapticPowerLevel = (byte)HapticPowerLevelFriendlyName.Str100;
+        public byte HapticPowerLevel
+        {
+            get => hapticPowerLevel;
+            set => hapticPowerLevel = value;
         }
+
+        protected bool useRumble = true;
+        public bool UseRumble { get => useRumble; set => useRumble = value; }
+
+        // Accurate rumble emulation mode requires 2.24 firmware or newer. On official hardware it takes priority over normal/legacy rumble
+        protected bool useAccurateRumble = true; 
+        public bool UseAccurateRumble { get => useAccurateRumble; set => useAccurateRumble = value; }
 
         private TriggerEffectData l2EffectData;
         private TriggerEffectData r2EffectData;
@@ -554,6 +561,8 @@ namespace DS4Windows.InputDevices
                     cState.RY = inputReport[4 + reportOffset];
                     cState.L2 = inputReport[5 + reportOffset];
                     cState.R2 = inputReport[6 + reportOffset];
+                    cState.L2Raw = cState.L2;
+                    cState.R2Raw = cState.R2;
 
                     // DS4 Frame Counter range is [0-127]. DS version range is [0-255]. Convert
                     cState.FrameCounter = (byte)(inputReport[7 + reportOffset] % 128);
@@ -695,7 +704,7 @@ namespace DS4Windows.InputDevices
                     cState.TrackPadTouch0.X = (short)(((ushort)(inputReport[35+reportOffset] & 0x0f) << 8) | (ushort)(inputReport[34+reportOffset]));
                     cState.TrackPadTouch0.Y = (short)(((ushort)(inputReport[36+reportOffset]) << 4) | ((ushort)(inputReport[35+reportOffset] & 0xf0) >> 4));
 
-                    cState.TrackPadTouch0.RawTrackingNum = inputReport[37+reportOffset];
+                    cState.TrackPadTouch1.RawTrackingNum = inputReport[37+reportOffset];
                     cState.TrackPadTouch1.Id = (byte)(inputReport[37+reportOffset] & 0x7f);
                     cState.TrackPadTouch1.IsActive = (inputReport[37+reportOffset] & 0x80) == 0;
                     cState.TrackPadTouch1.X = (short)(((ushort)(inputReport[39+reportOffset] & 0x0f) << 8) | (ushort)(inputReport[38+reportOffset]));
@@ -708,7 +717,8 @@ namespace DS4Windows.InputDevices
                         // don't seem to contain relevant data. ds4drv does not use them either.
                         int touchOffset = 0;
 
-                        cState.TouchPacketCounter = inputReport[-1 + TOUCHPAD_DATA_OFFSET + reportOffset + touchOffset];
+                        // TouchPacketCounter is at the end of the Touchpad payload with the DualSense
+                        cState.TouchPacketCounter = inputReport[8 + TOUCHPAD_DATA_OFFSET + reportOffset + touchOffset];
                         cState.Touch1 = (inputReport[0 + TOUCHPAD_DATA_OFFSET + reportOffset + touchOffset] >> 7) != 0 ? false : true; // finger 1 detected
                         cState.Touch1Identifier = (byte)(inputReport[0 + TOUCHPAD_DATA_OFFSET + reportOffset + touchOffset] & 0x7f);
                         cState.Touch2 = (inputReport[4 + TOUCHPAD_DATA_OFFSET + reportOffset + touchOffset] >> 7) != 0 ? false : true; // finger 2 detected
@@ -863,6 +873,11 @@ namespace DS4Windows.InputDevices
             outputReport[1 + reportOffset] = useRumble ? (byte)0x0F : (byte)0x0C;
             outputReport[2 + reportOffset] = 0x15; // Toggle all LED lights. 0x01 | 0x04 | 0x10
 
+            // Set Lightbar to white
+            outputReport[45 + reportOffset] = 0xFF; 
+            outputReport[46 + reportOffset] = 0xFF;
+            outputReport[47 + reportOffset] = 0xFF;
+
             if (conType == ConnectionType.BT)
             {
                 outputReport[1] = OUTPUT_REPORT_ID_DATA;
@@ -925,7 +940,7 @@ namespace DS4Windows.InputDevices
                 // 0x40 Adjust overall motor/effect power, 0x80 ???
                 outputReport[2] = 0x55; // 0x04 | 0x01 | 0x10 | 0x40
 
-                if (useRumble)
+                if (useRumble || useAccurateRumble)
                 {
                     // Right? High Freq Motor
                     outputReport[3] = currentHap.rumbleState.RumbleMotorStrengthRightLightFast;
@@ -982,14 +997,16 @@ namespace DS4Windows.InputDevices
                 outputReport[31] = l2EffectData.triggerActuationFrequency; // effect actuation frequency in Hz (requires supplement modes 4 and 20)
 
                 // (lower nibble: main motor; upper nibble trigger effects) 0x00 to 0x07 - reduce overall power of the respective motors/effects by 12.5% per increment (this does not affect the regular trigger motor settings, just the automatically repeating trigger effects)
-                outputReport[37] = hapticsIntensityByte;
+                outputReport[37] = hapticPowerLevel;
                 // Volume of internal speaker (0-7; ties in with index 6. The PS5 default appears to be set a 4)
                 //outputReport[38] = 0x00;
 
-                /* Player LED section */
+                /* Player LED section (and improved rumble flag) */
                 // 0x01 Enabled LED brightness (value in index 43)
                 // 0x02 Uninterruptable blue LED pulse (action in index 42)
-                outputReport[39] = 0x02;
+                // 0x04 Enable improved rumble emulation (Requires 2.24 firmware or newer)
+                outputReport[39] = useAccurateRumble ? (byte)0x06 : (byte)0x02;
+
                 // 0x01 Slowly (2s?) fade to blue (scheduled to when the regular LED settings are active)
                 // 0x02 Slowly (2s?) fade out (scheduled after fade-in completion) with eventual switch back to configured LED color; only a fade-out can cancel the pulse (neither index 2, 0x08, nor turning this off will cancel it!)
                 outputReport[42] = 0x02;
@@ -1060,7 +1077,7 @@ namespace DS4Windows.InputDevices
                 // 0x40 Adjust overall motor/effect power, 0x80 ???
                 outputReport[3] = 0x55; // 0x04 | 0x01 | 0x10 | 0x40
 
-                if (useRumble)
+                if (useRumble || useAccurateRumble)
                 {
                     // Right? High Freq Motor
                     outputReport[4] = currentHap.rumbleState.RumbleMotorStrengthRightLightFast;
@@ -1117,14 +1134,16 @@ namespace DS4Windows.InputDevices
                 outputReport[32] = l2EffectData.triggerActuationFrequency; // effect actuation frequency in Hz (requires supplement modes 4 and 20)
 
                 // (lower nibble: main motor; upper nibble trigger effects) 0x00 to 0x07 - reduce overall power of the respective motors/effects by 12.5% per increment (this does not affect the regular trigger motor settings, just the automatically repeating trigger effects)
-                outputReport[38] = hapticsIntensityByte;
+                outputReport[38] = hapticPowerLevel;
                 // Volume of internal speaker (0-7; ties in with index 6. The PS5 default appears to be set a 4)
                 //outputReport[39] = 0x00;
 
-                /* Player LED section */
+                /* Player LED section (and improved rumble  flag) */
                 // 0x01 Enabled LED brightness (value in index 43)
                 // 0x02 Uninterruptable blue LED pulse (action in index 42)
-                outputReport[40] = 0x02;
+                // 0x04 Enable improved rumble emulation (Requires 2.24 firmware or newer)
+                outputReport[40] = useAccurateRumble ? (byte)0x06 : (byte)0x02; 
+
                 // 0x01 Slowly (2s?) fade to blue (scheduled to when the regular LED settings are active)
                 // 0x02 Slowly (2s?) fade out (scheduled after fade-in completion) with eventual switch back to configured LED color; only a fade-out can cancel the pulse (neither index 2, 0x08, nor turning this off will cancel it!)
                 outputReport[43] = 0x02;
@@ -1377,17 +1396,6 @@ namespace DS4Windows.InputDevices
         {
             if (nativeOptionsStore != null)
             {
-                nativeOptionsStore.EnableRumbleChanged += (sender, e) =>
-                {
-                    UseRumble = nativeOptionsStore.EnableRumble;
-                    queueEvent(() => { outputDirty = true; });
-                };
-                nativeOptionsStore.HapticIntensityChanged += (sender, e) =>
-                {
-                    HapticChoice = nativeOptionsStore.HapticIntensity;
-                    queueEvent(() => { outputDirty = true; });
-                };
-
                 nativeOptionsStore.MuteLedModeChanged += (sender, e) =>
                 {
                     PrepareMuteLEDByte();
@@ -1406,8 +1414,6 @@ namespace DS4Windows.InputDevices
         {
             if (nativeOptionsStore != null)
             {
-                UseRumble = nativeOptionsStore.EnableRumble;
-                HapticChoice = nativeOptionsStore.HapticIntensity;
                 PrepareMuteLEDByte();
                 PreparePlayerLEDBarByte();
             }

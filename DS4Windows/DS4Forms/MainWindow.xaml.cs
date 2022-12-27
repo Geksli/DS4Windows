@@ -22,6 +22,7 @@ using HttpProgress;
 using DS4WinWPF.DS4Forms.ViewModels;
 using DS4Windows;
 using DS4WinWPF.Translations;
+using H.NotifyIcon.Core;
 
 namespace DS4WinWPF.DS4Forms
 {
@@ -33,6 +34,9 @@ namespace DS4WinWPF.DS4Forms
     {
         private const int DEFAULT_PROFILE_EDITOR_WIDTH = 1000;
         private const int DEFAULT_PROFILE_EDITOR_HEIGHT = 650;
+
+        private const int POWER_RESUME = 7;
+        private const int POWER_SUSPEND = 4;
 
         private MainWindowsViewModel mainWinVM;
         private StatusLogMsg lastLogMsg = new StatusLogMsg();
@@ -81,6 +85,7 @@ namespace DS4WinWPF.DS4Forms
             controllerLV.DataContext = conLvViewModel;
             controllerLV.ItemsSource = conLvViewModel.ControllerCol;
             ChangeControllerPanel();
+
             // Sort device by input slot number
             CollectionView view = (CollectionView)CollectionViewSource.GetDefaultView(controllerLV.ItemsSource);
             view.SortDescriptions.Clear();
@@ -88,7 +93,31 @@ namespace DS4WinWPF.DS4Forms
             view.Refresh();
 
             trayIconVM = new TrayIconViewModel(App.rootHub, profileListHolder);
+
+            // Need to define before calling TaskbarIcon.ForceCreate
             notifyIcon.DataContext = trayIconVM;
+            notifyIcon.CustomName = Global.exelocation;
+
+            // Remove TaskbarIcon from visual tree so Loaded and Unloaded events
+            // are not fired for TaskbarIcon instance. Ignores early Dispose calls
+            // when scaling changes or an RDP session is activated
+            var parent = VisualTreeHelper.GetParent(notifyIcon) as Panel;
+            if (parent != null)
+            {
+                parent.Children.Remove(notifyIcon);
+                // Since Loaded event will not get fired from Window, need to
+                // create the tray icon explicitly here
+                try
+                {
+                    // Loaded event handler has enablesEfficiencyMode default to false so
+                    // do the same here
+                    notifyIcon.ForceCreate(enablesEfficiencyMode: false);
+                }
+                catch (Exception)
+                {
+                    // Ignore exception
+                }
+            }
 
             if (Global.StartMinimized || parser.Mini)
             {
@@ -101,11 +130,20 @@ namespace DS4WinWPF.DS4Forms
                 uacImg.Visibility = Visibility.Collapsed;
             }
 
-            this.Width = Global.FormWidth;
-            this.Height = Global.FormHeight;
+            // Check display width bounds on startup
+            this.Width = Global.FormWidth = (int)Math.Clamp(Global.FormWidth, 0, Global.fullDesktopBounds.Width);
+            this.Height = Global.FormHeight = (int)Math.Clamp(Global.FormHeight, 0, Global.fullDesktopBounds.Height);
+            // Keep possible example that does not rely on WpfScreenHelper
+            //this.Width = Math.Clamp(Global.FormWidth, 0, SystemParameters.VirtualScreenWidth);
+            //this.Height = Math.Clamp(Global.FormHeight, 0, SystemParameters.VirtualScreenHeight);
+
+            // Check if requested window location exists on startup
             WindowStartupLocation = WindowStartupLocation.Manual;
-            Left = Global.FormLocationX;
-            Top = Global.FormLocationY;
+            Left = Global.FormLocationX = (int)Math.Clamp(Global.FormLocationX, 0, Global.fullDesktopBounds.Right);
+            Top = Global.FormLocationY = (int)Math.Clamp(Global.FormLocationY, 0, Global.fullDesktopBounds.Bottom);
+            // Keep possible example that does not rely on WpfScreenHelper
+            //Left = Math.Clamp(Global.FormLocationX, 0, SystemParameters.VirtualScreenLeft);
+            //Top = Math.Clamp(Global.FormLocationY, 0, SystemParameters.VirtualScreenHeight);
             noContLb.Content = string.Format(Strings.NoControllersConnected,
                 ControlService.CURRENT_DS4_CONTROLLER_LIMIT);
 
@@ -119,6 +157,7 @@ namespace DS4WinWPF.DS4Forms
 
             SetupEvents();
 
+            // Don't tie timers to main thread
             Thread timerThread = new Thread(() =>
             {
                 hotkeysTimer = new NonFormTimer();
@@ -132,6 +171,7 @@ namespace DS4WinWPF.DS4Forms
             timerThread.IsBackground = true;
             timerThread.Priority = ThreadPriority.Lowest;
             timerThread.Start();
+            // Wait for thread tasks to finish before continuing
             timerThread.Join();
         }
 
@@ -139,7 +179,7 @@ namespace DS4WinWPF.DS4Forms
         {
             Task tempTask = Task.Run(() =>
             {
-                CheckDrivers();
+                mainWinVM.CheckDrivers();
                 if (!parser.Stop)
                 {
                     Dispatcher.BeginInvoke((Action)(() =>
@@ -160,7 +200,7 @@ namespace DS4WinWPF.DS4Forms
                 int checkwhen = Global.CheckWhen;
                 if (checkwhen > 0 && DateTime.Now >= Global.LastChecked + TimeSpan.FromHours(checkwhen))
                 {
-                    DownloadUpstreamVersionInfo();
+                    mainWinVM.DownloadUpstreamVersionInfo();
                     Check_Version();
 
                     Global.LastChecked = DateTime.Now;
@@ -169,58 +209,11 @@ namespace DS4WinWPF.DS4Forms
             Util.LogAssistBackgroundTask(tempTask);
         }
 
-        private void DownloadUpstreamVersionInfo()
-        {
-            // Sorry other devs, gonna have to find your own server
-            Uri url = new Uri("https://raw.githubusercontent.com/Ryochan7/DS4Windows/jay/DS4Windows/newest.txt");
-            string filename = Global.appdatapath + "\\version.txt";
-            bool success = false;
-            using (var downloadStream = new FileStream(filename, FileMode.Create))
-            {
-                Task<System.Net.Http.HttpResponseMessage> temp = App.requestClient.GetAsync(url.ToString(), downloadStream);
-                try
-                {
-                    temp.Wait();
-                    if (temp.Result.IsSuccessStatusCode) success = true;
-                }
-                catch (AggregateException) { }
-            }
-
-            if (!success && File.Exists(filename))
-            {
-                File.Delete(filename);
-            }
-        }
-
-        private string DownloadUpstreamUpdaterVersion()
-        {
-            string result = string.Empty;
-            // Sorry other devs, gonna have to find your own server
-            Uri url = new Uri("https://raw.githubusercontent.com/Ryochan7/DS4Updater/master/Updater2/newest.txt");
-            string filename = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "DS4Updater_version.txt");
-            bool readFile = false;
-            using (var downloadStream = new FileStream(filename, FileMode.Create))
-            {
-                Task<System.Net.Http.HttpResponseMessage> temp = App.requestClient.GetAsync(url.ToString(), downloadStream);
-                temp.Wait();
-
-                if (temp.Result.IsSuccessStatusCode) readFile = true;
-            }
-
-            if (readFile)
-            {
-                result = File.ReadAllText(filename).Trim();
-                File.Delete(filename);
-            }
-
-            return result;
-        }
-
         private void Check_Version(bool showstatus = false)
         {
             string version = Global.exeversion;
             string newversion = string.Empty;
-            string versionFilePath = Global.appdatapath + "\\version.txt";
+            string versionFilePath = Path.Combine(Global.appdatapath, "version.txt");
             ulong lastVersionNum = Global.LastVersionCheckedNum;
             //ulong lastVersion = Global.CompileVersionNumberFromString("2.1.1");
 
@@ -248,32 +241,11 @@ namespace DS4WinWPF.DS4Forms
                 if (result == MessageBoxResult.Yes)
                 {
                     bool launch = true;
-                    launch = RunUpdaterCheck(launch);
+                    launch = mainWinVM.RunUpdaterCheck(launch, out string newUpdaterVersion);
 
                     if (launch)
                     {
-                        using (Process p = new Process())
-                        {
-                            p.StartInfo.FileName = System.IO.Path.Combine(Global.exedirpath, "DS4Updater.exe");
-                            bool isAdmin = Global.IsAdministrator();
-                            List<string> argList = new List<string>();
-                            argList.Add("-autolaunch");
-                            if (!isAdmin)
-                            {
-                                argList.Add("-user");
-                            }
-
-                            // Specify current exe to have DS4Updater launch
-                            argList.Add("--launchExe");
-                            argList.Add(Global.exeFileName);
-
-                            p.StartInfo.Arguments = string.Join(" ", argList);
-                            if (Global.AdminNeeded())
-                                p.StartInfo.Verb = "runas";
-
-                            try { launch = p.Start(); }
-                            catch (InvalidOperationException) { }
-                        }
+                        launch = mainWinVM.LauchDS4Updater();
                     }
 
                     if (launch)
@@ -289,64 +261,29 @@ namespace DS4WinWPF.DS4Forms
                         Dispatcher.Invoke(() =>
                         {
                             MessageBox.Show(Properties.Resources.PleaseDownloadUpdater);
-                            Util.StartProcessHelper($"https://github.com/Ryochan7/DS4Updater/releases/tag/v{version}/{mainWinVM.updaterExe}");
+                            if (!string.IsNullOrEmpty(newUpdaterVersion))
+                            {
+                                Util.StartProcessHelper($"https://github.com/Ryochan7/DS4Updater/releases/tag/v{newUpdaterVersion}/{mainWinVM.updaterExe}");
+                            }
                         });
-                        //Process.Start($"https://github.com/Ryochan7/DS4Updater/releases/download/v{version}/{mainWinVM.updaterExe}");
                     }
                 }
                 else
                 {
                     if (versionFileExists)
-                        File.Delete(Global.appdatapath + "\\version.txt");
+                        File.Delete(versionFilePath);
                 }
             }
             else
             {
                 if (versionFileExists)
-                    File.Delete(Global.appdatapath + "\\version.txt");
+                    File.Delete(versionFilePath);
 
                 if (showstatus)
                 {
                     Dispatcher.Invoke(() => MessageBox.Show(Properties.Resources.UpToDate, "DS4Windows Updater"));
                 }
             }
-        }
-
-        private bool RunUpdaterCheck(bool launch)
-        {
-            string destPath = Global.exedirpath + "\\DS4Updater.exe";
-            bool updaterExists = File.Exists(destPath);
-            string version = DownloadUpstreamUpdaterVersion();
-            if (!updaterExists ||
-                (!string.IsNullOrEmpty(version) && FileVersionInfo.GetVersionInfo(destPath).FileVersion.CompareTo(version) != 0))
-            {
-                launch = false;
-                Uri url2 = new Uri($"https://github.com/Ryochan7/DS4Updater/releases/download/v{version}/{mainWinVM.updaterExe}");
-                string filename = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "DS4Updater.exe");
-                using (var downloadStream = new FileStream(filename, FileMode.Create))
-                {
-                    Task<System.Net.Http.HttpResponseMessage> temp =
-                        App.requestClient.GetAsync(url2.ToString(), downloadStream);
-                    temp.Wait();
-                    if (temp.Result.IsSuccessStatusCode) launch = true;
-                }
-
-                if (launch)
-                {
-                    if (Global.AdminNeeded())
-                    {
-                        int copyStatus = Util.ElevatedCopyUpdater(filename);
-                        if (copyStatus != 0) launch = false;
-                    }
-                    else
-                    {
-                        if (updaterExists) File.Delete(destPath);
-                        File.Move(filename, destPath);
-                    }
-                }
-            }
-
-            return launch;
         }
 
         private void TrayIconVM_RequestMinimize(object sender, EventArgs e)
@@ -373,9 +310,9 @@ namespace DS4WinWPF.DS4Forms
                 if (!IsActive && (Global.Notifications == 2 ||
                     (Global.Notifications == 1 && e.Warning)))
                 {
-                    notifyIcon.ShowBalloonTip(TrayIconViewModel.ballonTitle,
-                    e.Data, !e.Warning ? Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info :
-                    Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Warning);
+                    notifyIcon.ShowNotification(TrayIconViewModel.ballonTitle,
+                        e.Data, !e.Warning ? H.NotifyIcon.Core.NotificationIcon.Info :
+                        H.NotifyIcon.Core.NotificationIcon.Warning);
                 }
             }));
         }
@@ -525,37 +462,43 @@ Suspend support not enabled.", true);
             switch (evType)
             {
                 // Wakeup from Suspend
-                case 7:
-                    DS4LightBar.shuttingdown = false;
-                    App.rootHub.suspending = false;
-
-                    if (wasrunning)
+                case POWER_RESUME:
                     {
-                        wasrunning = false;
-                        Thread.Sleep(16000);
-                        Dispatcher.BeginInvoke((Action)(() =>
-                        {
-                            StartStopBtn.IsEnabled = false;
-                        }));
+                        DS4LightBar.shuttingdown = false;
+                        App.rootHub.suspending = false;
 
-                        App.rootHub.Start();
+                        if (wasrunning)
+                        {
+                            wasrunning = false;
+                            //Thread.Sleep(16000);
+                            Dispatcher.Invoke(() =>
+                            {
+                                StartStopBtn.IsEnabled = false;
+                            });
+
+                            App.rootHub.Start();
+                        }
                     }
 
                     break;
                 // Entering Suspend
-                case 4:
-                    DS4LightBar.shuttingdown = true;
-                    Program.rootHub.suspending = true;
-
-                    if (App.rootHub.running)
+                case POWER_SUSPEND:
                     {
-                        Dispatcher.BeginInvoke((Action)(() =>
-                        {
-                            StartStopBtn.IsEnabled = false;
-                        }));
+                        DS4LightBar.shuttingdown = true;
+                        Program.rootHub.suspending = true;
 
-                        App.rootHub.Stop(immediateUnplug: true);
-                        wasrunning = true;
+                        if (App.rootHub.running)
+                        {
+                            Dispatcher.Invoke(() =>
+                            {
+                                StartStopBtn.IsEnabled = false;
+                            });
+
+                            App.rootHub.Stop(immediateUnplug: true);
+                            wasrunning = true;
+
+                            Thread.Sleep(1000);
+                        }
                     }
 
                     break;
@@ -638,8 +581,8 @@ Suspend support not enabled.", true);
         {
             if (!IsActive && (Global.Notifications == 2))
             {
-                notifyIcon.ShowBalloonTip(TrayIconViewModel.ballonTitle,
-                message, Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
+                notifyIcon.ShowNotification(TrayIconViewModel.ballonTitle,
+                    message, H.NotifyIcon.Core.NotificationIcon.Info);
             }
         }
 
@@ -1265,9 +1208,11 @@ Suspend support not enabled.", true);
             inHotPlug = true;
 
             bool loopHotplug = false;
+
             lock (hotplugCounterLock)
             {
                 loopHotplug = hotplugCounter > 0;
+                hotplugCounter = 0;
             }
 
             Program.rootHub.UpdateHidHiddenAttributes();
@@ -1275,10 +1220,11 @@ Suspend support not enabled.", true);
             {
                 Thread.Sleep(HOTPLUG_CHECK_DELAY);
                 Program.rootHub.HotPlug();
+
                 lock (hotplugCounterLock)
                 {
-                    hotplugCounter--;
                     loopHotplug = hotplugCounter > 0;
+                    hotplugCounter = 0;
                 }
             }
 
@@ -1340,6 +1286,19 @@ Suspend support not enabled.", true);
             hideDS4ContCk.IsEnabled = true;
             StartStopBtn.IsEnabled = true;
         }
+
+        private void UseOscServerCk_Click(object sender, RoutedEventArgs e)
+        {
+            bool status = useOscServerCk.IsChecked == true;
+            App.rootHub.ChangeOSCListenerStatus(status);
+        }
+
+        private void UseOscSenderCk_Click(object sender, RoutedEventArgs e)
+        {
+            bool status = useOscSenderCk.IsChecked == true;
+            App.rootHub.ChangeOSCSenderStatus(status);
+        }
+
         private async void UseUdpServerCk_Click(object sender, RoutedEventArgs e)
         {
             bool status = useUdpServerCk.IsChecked == true;
@@ -1413,29 +1372,9 @@ Suspend support not enabled.", true);
         {
             Task.Run(() =>
             {
-                DownloadUpstreamVersionInfo();
+                mainWinVM.DownloadUpstreamVersionInfo();
                 Check_Version(true);
             });
-        }
-
-        private void CheckDrivers()
-        {
-            bool deriverinstalled = Global.IsViGEmBusInstalled();
-            if (!deriverinstalled || !Global.IsRunningSupportedViGEmBus())
-            {
-                ProcessStartInfo startInfo = new ProcessStartInfo();
-                startInfo.FileName = $"{Global.exelocation}";
-                startInfo.Arguments = "-driverinstall";
-                startInfo.Verb = "runas";
-                startInfo.UseShellExecute = true;
-                try
-                {
-                    using (Process temp = Process.Start(startInfo))
-                    {
-                    }
-                }
-                catch { }
-            }
         }
 
         private void ImportProfBtn_Click(object sender, RoutedEventArgs e)
@@ -1689,11 +1628,8 @@ Suspend support not enabled.", true);
 
         private void HidHideBtn_Click(object sender, RoutedEventArgs e)
         {
-            string driveLetter = System.IO.Path.GetPathRoot(Global.exedirpath);
-            string path = System.IO.Path.Combine(driveLetter, "Program Files",
-                "Nefarius Software Solutions e.U", "HidHideClient", "HidHideClient.exe");
-
-            if (File.Exists(path))
+            string path = Util.GetHidHideClientPath();
+            if (!string.IsNullOrEmpty(path))
             {
                 try
                 {
