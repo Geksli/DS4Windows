@@ -1,10 +1,32 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using System.Xml.Serialization;
 using DS4Windows.InputDevices;
+using DS4WinWPF.DS4Control.DTOXml;
 
 namespace DS4Windows
 {
@@ -21,6 +43,9 @@ namespace DS4Windows
 
         private JoyConDeviceOptions joyConDeviceOpts = new JoyConDeviceOptions();
         public JoyConDeviceOptions JoyConDeviceOpts { get => joyConDeviceOpts; }
+
+        private DS3DeviceOptions dS3DeviceOpts = new DS3DeviceOptions();
+        public DS3DeviceOptions DS3DeviceOpts { get => dS3DeviceOpts; }
 
         private bool verboseLogMessages;
         public bool VerboseLogMessages { get => verboseLogMessages; set => verboseLogMessages = value; }
@@ -54,7 +79,25 @@ namespace DS4Windows
 
     public class DS4DeviceOptions
     {
-        private bool enabled = true;
+        public const bool DEFAULT_ENABLE = true;
+        private bool enabled = DEFAULT_ENABLE;
+        public bool Enabled
+        {
+            get => enabled;
+            set
+            {
+                if (enabled == value) return;
+                enabled = value;
+                EnabledChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        public event EventHandler EnabledChanged;
+    }
+
+    public class DS3DeviceOptions
+    {
+        public const bool DEFAULT_ENABLE = false;
+        private bool enabled = DEFAULT_ENABLE;
         public bool Enabled
         {
             get => enabled;
@@ -70,6 +113,7 @@ namespace DS4Windows
 
     public class DS4ControllerOptions : ControllerOptionsStore
     {
+        public const string XML_ELEMENT_NAME = "DS4SupportSettings";
         private bool copyCatController;
         public bool IsCopyCat
         {
@@ -89,40 +133,70 @@ namespace DS4Windows
 
         public override void PersistSettings(XmlDocument xmlDoc, XmlNode node)
         {
-            XmlNode tempOptsNode = node.SelectSingleNode("DS4SupportSettings");
-            if (tempOptsNode == null)
+            string testStr = string.Empty;
+            XmlSerializer serializer = new XmlSerializer(typeof(DS4ControllerOptsDTO));
+
+            using (Utf8StringWriter strWriter = new Utf8StringWriter())
             {
-                tempOptsNode = xmlDoc.CreateElement("DS4SupportSettings");
-            }
-            else
-            {
-                tempOptsNode.RemoveAll();
+                using XmlWriter xmlWriter = XmlWriter.Create(strWriter,
+                    new XmlWriterSettings()
+                    {
+                        Encoding = Encoding.UTF8,
+                        Indent = false,
+                        OmitXmlDeclaration = true, // only partial XML with no declaration
+                    });
+
+                // Write root element and children
+                DS4ControllerOptsDTO dto = new DS4ControllerOptsDTO();
+                dto.MapFrom(this);
+                // Omit xmlns:xsi and xmlns:xsd from output
+                serializer.Serialize(xmlWriter, dto,
+                    new XmlSerializerNamespaces(new[] { XmlQualifiedName.Empty }));
+                xmlWriter.Flush();
+                xmlWriter.Close();
+
+                testStr = strWriter.ToString();
+                //Trace.WriteLine("TEST OUTPUT");
+                //Trace.WriteLine(testStr);
             }
 
-            XmlNode tempRumbleNode = xmlDoc.CreateElement("Copycat");
-            tempRumbleNode.InnerText = copyCatController.ToString();
-            tempOptsNode.AppendChild(tempRumbleNode);
+            XmlNode tempDS4Node = xmlDoc.CreateDocumentFragment();
+            tempDS4Node.InnerXml = testStr;
 
+            XmlNode tempOptsNode = node.SelectSingleNode(XML_ELEMENT_NAME);
+            if (tempOptsNode != null)
+            {
+                node.RemoveChild(tempOptsNode);
+            }
+
+            tempOptsNode = tempDS4Node;
             node.AppendChild(tempOptsNode);
         }
 
         public override void LoadSettings(XmlDocument xmlDoc, XmlNode node)
         {
-            XmlNode baseNode = node.SelectSingleNode("DS4SupportSettings");
-            if (baseNode != null)
+            XmlSerializer serializer = new XmlSerializer(typeof(DS4ControllerOptsDTO));
+            XmlNode baseNode = node.SelectSingleNode(XML_ELEMENT_NAME);
+            if (baseNode == null)
+                return;
+
+            try
             {
-                XmlNode item = baseNode.SelectSingleNode("Copycat");
-                if (bool.TryParse(item?.InnerText ?? "", out bool temp))
-                {
-                    copyCatController = temp;
-                }
+                using var stringReader = new StringReader(baseNode.OuterXml);
+                using var xmlReader = XmlReader.Create(stringReader);
+                DS4ControllerOptsDTO dto = serializer.Deserialize(xmlReader) as DS4ControllerOptsDTO;
+                dto.MapTo(this);
+            }
+            catch (InvalidOperationException)
+            {
             }
         }
     }
 
     public class DualSenseDeviceOptions
     {
-        private bool enabled = true;
+        public const bool DEFAULT_ENABLE = false;
+        private bool enabled = DEFAULT_ENABLE;
         public bool Enabled
         {
             get => enabled;
@@ -138,6 +212,8 @@ namespace DS4Windows
 
     public class DualSenseControllerOptions : ControllerOptionsStore
     {
+        public const string XML_ELEMENT_NAME = "DualSenseSupportSettings";
+
         public enum LEDBarMode : ushort
         {
             Off,
@@ -186,52 +262,70 @@ namespace DS4Windows
 
         public override void PersistSettings(XmlDocument xmlDoc, XmlNode node)
         {
-            XmlNode tempOptsNode = node.SelectSingleNode("DualSenseSupportSettings");
-            if (tempOptsNode == null)
+            string testStr = string.Empty;
+            XmlSerializer serializer = new XmlSerializer(typeof(DualSenseControllerOptsDTO));
+
+            using (Utf8StringWriter strWriter = new Utf8StringWriter())
             {
-                tempOptsNode = xmlDoc.CreateElement("DualSenseSupportSettings");
+                using XmlWriter xmlWriter = XmlWriter.Create(strWriter,
+                    new XmlWriterSettings()
+                    {
+                        Encoding = Encoding.UTF8,
+                        Indent = false,
+                        OmitXmlDeclaration = true, // only partial XML with no declaration
+                    });
+
+                // Write root element and children
+                DualSenseControllerOptsDTO dto = new DualSenseControllerOptsDTO();
+                dto.MapFrom(this);
+                // Omit xmlns:xsi and xmlns:xsd from output
+                serializer.Serialize(xmlWriter, dto,
+                    new XmlSerializerNamespaces(new[] { XmlQualifiedName.Empty }));
+                xmlWriter.Flush();
+                xmlWriter.Close();
+
+                testStr = strWriter.ToString();
+                //Trace.WriteLine("TEST OUTPUT");
+                //Trace.WriteLine(testStr);
             }
-            else
+
+            XmlNode tempDSNode = xmlDoc.CreateDocumentFragment();
+            tempDSNode.InnerXml = testStr;
+
+            XmlNode tempOptsNode = node.SelectSingleNode(XML_ELEMENT_NAME);
+            if (tempOptsNode != null)
             {
-                tempOptsNode.RemoveAll();
+                node.RemoveChild(tempOptsNode);
             }
 
-            XmlNode tempLedMode = xmlDoc.CreateElement("LEDBarMode");
-            tempLedMode.InnerText = ledMode.ToString();
-            tempOptsNode.AppendChild(tempLedMode);
-
-            XmlNode tempMuteLedMode = xmlDoc.CreateElement("MuteLEDMode");
-            tempMuteLedMode.InnerText = muteLedMode.ToString();
-            tempOptsNode.AppendChild(tempMuteLedMode);
-
+            tempOptsNode = tempDSNode;
             node.AppendChild(tempOptsNode);
         }
 
         public override void LoadSettings(XmlDocument xmlDoc, XmlNode node)
         {
-            XmlNode baseNode = node.SelectSingleNode("DualSenseSupportSettings");
-            if (baseNode != null)
-            {
-                XmlNode itemLedMode = baseNode.SelectSingleNode("LEDBarMode");
-                if (Enum.TryParse(itemLedMode?.InnerText ?? "",
-                    out LEDBarMode tempLED))
-                {
-                    ledMode = tempLED;
-                }
+            XmlSerializer serializer = new XmlSerializer(typeof(DualSenseControllerOptsDTO));
+            XmlNode baseNode = node.SelectSingleNode(XML_ELEMENT_NAME);
+            if (baseNode == null)
+                return;
 
-                XmlNode itemMuteLedMode = baseNode.SelectSingleNode("MuteLEDMode");
-                if (Enum.TryParse(itemMuteLedMode?.InnerText ?? "",
-                    out MuteLEDMode tempMuteLED))
-                {
-                    muteLedMode = tempMuteLED;
-                }
+            try
+            {
+                using var stringReader = new StringReader(baseNode.OuterXml);
+                using var xmlReader = XmlReader.Create(stringReader);
+                DualSenseControllerOptsDTO dto = serializer.Deserialize(xmlReader) as DualSenseControllerOptsDTO;
+                dto.MapTo(this);
+            }
+            catch (InvalidOperationException)
+            {
             }
         }
     }
 
     public class SwitchProDeviceOptions
     {
-        private bool enabled = true;
+        public const bool DEFAULT_ENABLE = false;
+        private bool enabled = DEFAULT_ENABLE;
         public bool Enabled
         {
             get => enabled;
@@ -247,6 +341,8 @@ namespace DS4Windows
 
     public class SwitchProControllerOptions : ControllerOptionsStore
     {
+        public const string XML_ELEMENT_NAME = "SwitchProSupportSettings";
+
         private bool enableHomeLED = true;
         public bool EnableHomeLED
         {
@@ -266,40 +362,70 @@ namespace DS4Windows
 
         public override void PersistSettings(XmlDocument xmlDoc, XmlNode node)
         {
-            XmlNode tempOptsNode = node.SelectSingleNode("SwitchProSupportSettings");
-            if (tempOptsNode == null)
+            string testStr = string.Empty;
+            XmlSerializer serializer = new XmlSerializer(typeof(SwitchProControllerOptsDTO));
+
+            using (Utf8StringWriter strWriter = new Utf8StringWriter())
             {
-                tempOptsNode = xmlDoc.CreateElement("SwitchProSupportSettings");
-            }
-            else
-            {
-                tempOptsNode.RemoveAll();
+                using XmlWriter xmlWriter = XmlWriter.Create(strWriter,
+                    new XmlWriterSettings()
+                    {
+                        Encoding = Encoding.UTF8,
+                        Indent = false,
+                        OmitXmlDeclaration = true, // only partial XML with no declaration
+                    });
+
+                // Write root element and children
+                SwitchProControllerOptsDTO dto = new SwitchProControllerOptsDTO();
+                dto.MapFrom(this);
+                // Omit xmlns:xsi and xmlns:xsd from output
+                serializer.Serialize(xmlWriter, dto,
+                    new XmlSerializerNamespaces(new[] { XmlQualifiedName.Empty }));
+                xmlWriter.Flush();
+                xmlWriter.Close();
+
+                testStr = strWriter.ToString();
+                //Trace.WriteLine("TEST OUTPUT");
+                //Trace.WriteLine(testStr);
             }
 
-            XmlNode tempElement = xmlDoc.CreateElement("EnableHomeLED");
-            tempElement.InnerText = enableHomeLED.ToString();
-            tempOptsNode.AppendChild(tempElement);
+            XmlNode tempSwitchProNode = xmlDoc.CreateDocumentFragment();
+            tempSwitchProNode.InnerXml = testStr;
 
+            XmlNode tempOptsNode = node.SelectSingleNode(XML_ELEMENT_NAME);
+            if (tempOptsNode != null)
+            {
+                node.RemoveChild(tempOptsNode);
+            }
+
+            tempOptsNode = tempSwitchProNode;
             node.AppendChild(tempOptsNode);
         }
 
         public override void LoadSettings(XmlDocument xmlDoc, XmlNode node)
         {
-            XmlNode baseNode = node.SelectSingleNode("SwitchProSupportSettings");
-            if (baseNode != null)
+            XmlSerializer serializer = new XmlSerializer(typeof(SwitchProControllerOptsDTO));
+            XmlNode baseNode = node.SelectSingleNode(XML_ELEMENT_NAME);
+            if (baseNode == null)
+                return;
+
+            try
             {
-                XmlNode item = baseNode.SelectSingleNode("EnableHomeLED");
-                if (bool.TryParse(item?.InnerText ?? "", out bool temp))
-                {
-                    enableHomeLED = temp;
-                }
+                using var stringReader = new StringReader(baseNode.OuterXml);
+                using var xmlReader = XmlReader.Create(stringReader);
+                SwitchProControllerOptsDTO dto = serializer.Deserialize(xmlReader) as SwitchProControllerOptsDTO;
+                dto.MapTo(this);
+            }
+            catch (InvalidOperationException)
+            {
             }
         }
     }
 
     public class JoyConDeviceOptions
     {
-        private bool enabled = true;
+        public const bool DEFAULT_ENABLE = false;
+        private bool enabled = DEFAULT_ENABLE;
         public bool Enabled
         {
             get => enabled;
@@ -318,7 +444,8 @@ namespace DS4Windows
             Joined,
         }
 
-        private LinkMode linkedMode = LinkMode.Joined;
+        public const LinkMode LINK_MODE_DEFAULT = LinkMode.Joined;
+        private LinkMode linkedMode = LINK_MODE_DEFAULT;
         public LinkMode LinkedMode
         {
             get => linkedMode;
@@ -349,6 +476,8 @@ namespace DS4Windows
 
     public class JoyConControllerOptions : ControllerOptionsStore
     {
+        public const string XML_ELEMENT_NAME = "JoyConSupportSettings";
+
         private bool enableHomeLED = true;
         public bool EnableHomeLED
         {
@@ -369,33 +498,62 @@ namespace DS4Windows
 
         public override void PersistSettings(XmlDocument xmlDoc, XmlNode node)
         {
-            XmlNode tempOptsNode = node.SelectSingleNode("JoyConSupportSettings");
-            if (tempOptsNode == null)
+            string testStr = string.Empty;
+            XmlSerializer serializer = new XmlSerializer(typeof(JoyConControllerOptsDTO));
+
+            using (Utf8StringWriter strWriter = new Utf8StringWriter())
             {
-                tempOptsNode = xmlDoc.CreateElement("JoyConSupportSettings");
-            }
-            else
-            {
-                tempOptsNode.RemoveAll();
+                using XmlWriter xmlWriter = XmlWriter.Create(strWriter,
+                    new XmlWriterSettings()
+                    {
+                        Encoding = Encoding.UTF8,
+                        Indent = false,
+                        OmitXmlDeclaration = true, // only partial XML with no declaration
+                    });
+
+                // Write root element and children
+                JoyConControllerOptsDTO dto = new JoyConControllerOptsDTO();
+                dto.MapFrom(this);
+                // Omit xmlns:xsi and xmlns:xsd from output
+                serializer.Serialize(xmlWriter, dto,
+                    new XmlSerializerNamespaces(new[] { XmlQualifiedName.Empty }));
+                xmlWriter.Flush();
+                xmlWriter.Close();
+
+                testStr = strWriter.ToString();
+                //Trace.WriteLine("TEST OUTPUT");
+                //Trace.WriteLine(testStr);
             }
 
-            XmlNode tempElement = xmlDoc.CreateElement("EnableHomeLED");
-            tempElement.InnerText = enableHomeLED.ToString();
-            tempOptsNode.AppendChild(tempElement);
+            XmlNode tempJoyConNode = xmlDoc.CreateDocumentFragment();
+            tempJoyConNode.InnerXml = testStr;
 
+            XmlNode tempOptsNode = node.SelectSingleNode(XML_ELEMENT_NAME);
+            if (tempOptsNode != null)
+            {
+                node.RemoveChild(tempOptsNode);
+            }
+
+            tempOptsNode = tempJoyConNode;
             node.AppendChild(tempOptsNode);
         }
 
         public override void LoadSettings(XmlDocument xmlDoc, XmlNode node)
         {
-            XmlNode baseNode = node.SelectSingleNode("JoyConSupportSettings");
-            if (baseNode != null)
+            XmlSerializer serializer = new XmlSerializer(typeof(JoyConControllerOptsDTO));
+            XmlNode baseNode = node.SelectSingleNode(XML_ELEMENT_NAME);
+            if (baseNode == null)
+                return;
+
+            try
             {
-                XmlNode item = baseNode.SelectSingleNode("EnableHomeLED");
-                if (bool.TryParse(item?.InnerText ?? "", out bool temp))
-                {
-                    enableHomeLED = temp;
-                }
+                using var stringReader = new StringReader(baseNode.OuterXml);
+                using var xmlReader = XmlReader.Create(stringReader);
+                JoyConControllerOptsDTO dto = serializer.Deserialize(xmlReader) as JoyConControllerOptsDTO;
+                dto.MapTo(this);
+            }
+            catch (InvalidOperationException)
+            {
             }
         }
     }

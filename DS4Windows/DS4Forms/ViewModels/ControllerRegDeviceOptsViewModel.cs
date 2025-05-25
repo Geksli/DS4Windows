@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -24,7 +42,10 @@ namespace DS4WinWPF.DS4Forms.ViewModels
 
         public bool EnableJoyCon { get => serviceDeviceOpts.JoyConDeviceOpts.Enabled; }
 
+        public bool EnableDS3 { get => serviceDeviceOpts.DS3DeviceOpts.Enabled; }
+
         public DS4DeviceOptions DS4DeviceOpts { get => serviceDeviceOpts.DS4DeviceOpts; }
+        public DS3DeviceOptions DS3DeviceOpts { get => serviceDeviceOpts.DS3DeviceOpts; }
         public DualSenseDeviceOptions DSDeviceOpts { get => serviceDeviceOpts.DualSenseOpts; }
         public SwitchProDeviceOptions SwitchProDeviceOpts { get => serviceDeviceOpts.SwitchProDeviceOpts; }
         public JoyConDeviceOptions JoyConDeviceOpts { get => serviceDeviceOpts.JoyConDeviceOpts; }
@@ -113,6 +134,9 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             int result = 0;
             switch (currentStore.DeviceType)
             {
+                case DS4Windows.InputDevices.InputDeviceType.DS3:
+                    result = 0;
+                    break;
                 case DS4Windows.InputDevices.InputDeviceType.DS4:
                     result = 1;
                     break;
@@ -127,6 +151,8 @@ namespace DS4WinWPF.DS4Forms.ViewModels
                     result = 4;
                     break;
                 default:
+                    // Default to empty control
+                    result = 0;
                     break;
             }
 
@@ -140,6 +166,9 @@ namespace DS4WinWPF.DS4Forms.ViewModels
 
             switch (currentStore.DeviceType)
             {
+                case DS4Windows.InputDevices.InputDeviceType.DS3:
+                    // Does not have device specific options
+                    break;
                 case DS4Windows.InputDevices.InputDeviceType.DS4:
                     dataContextObject = new DS4ControllerOptionsWrapper(CurrentDS4Options, serviceDeviceOpts.DS4DeviceOpts);
                     break;

@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -698,7 +716,7 @@ namespace DS4Windows
         private static bool stickWheelDownDir = false;
 
         //mapcustom
-        public static bool[] pressedonce = new bool[2400], macrodone = new bool[48];
+        public static bool[] pressedonce = new bool[2400], macrodone = new bool[DS4_CONTROL_MACRO_ARRAY_LEN];
         static bool[] macroControl = new bool[26];
         static uint macroCount = 0;
         static Dictionary<string, Task>[] macroTaskQueue = new Dictionary<string, Task>[Global.MAX_DS4_CONTROLLER_COUNT] { new Dictionary<string, Task>(), new Dictionary<string, Task>(), new Dictionary<string, Task>(), new Dictionary<string, Task>(), new Dictionary<string, Task>(), new Dictionary<string, Task>(), new Dictionary<string, Task>(), new Dictionary<string, Task>() };
@@ -716,20 +734,29 @@ namespace DS4Windows
         public static DateTime[] oldnowKeyAct = new DateTime[Global.MAX_DS4_CONTROLLER_COUNT] { DateTime.MinValue,
             DateTime.MinValue, DateTime.MinValue, DateTime.MinValue, DateTime.MinValue, DateTime.MinValue, DateTime.MinValue, DateTime.MinValue };
 
-        private static DS4Controls[] shiftTriggerMapping = new DS4Controls[31]
+        private const int SHIFT_TRIGGER_MAPPING_LEN = 35;
+        private static DS4Controls[] shiftTriggerMapping = new DS4Controls[SHIFT_TRIGGER_MAPPING_LEN]
         {
             DS4Controls.None, DS4Controls.Cross, DS4Controls.Circle, DS4Controls.Square,
             DS4Controls.Triangle, DS4Controls.Options, DS4Controls.Share, DS4Controls.DpadUp, DS4Controls.DpadDown,
             DS4Controls.DpadLeft, DS4Controls.DpadRight, DS4Controls.PS, DS4Controls.L1, DS4Controls.R1, DS4Controls.L2,
             DS4Controls.R2, DS4Controls.L3, DS4Controls.R3, DS4Controls.TouchLeft, DS4Controls.TouchUpper, DS4Controls.TouchMulti,
             DS4Controls.TouchRight, DS4Controls.GyroZNeg, DS4Controls.GyroZPos, DS4Controls.GyroXPos, DS4Controls.GyroXNeg,
-            DS4Controls.None, DS4Controls.Mute, DS4Controls.Capture, DS4Controls.SideL, DS4Controls.SideR
+            DS4Controls.None, DS4Controls.Mute, DS4Controls.FnL, DS4Controls.FnR, DS4Controls.BLP, DS4Controls.BRP,
+            DS4Controls.Capture, DS4Controls.SideL, DS4Controls.SideR
         };
+
+        /// <summary>
+        /// Touch 1 Finger is treated special when it comes to shift triggers. It does not correspond
+        /// to a direct value from DS4Controls
+        /// </summary>
+        private const int TOUCH_FINGER_SHIFT_TRIGGER = 26;
+        private const int DS4_CONTROL_MACRO_ARRAY_LEN = 52;
 
         // Button to index mapping used for macrodone array. Not even sure this
         // is needed. This was originally made to replace a switch test used in the DS4ControlToInt method.
         // DS4Controls -> Macro input map index
-        private static int[] ds4ControlMapping = new int[48]
+        private static int[] ds4ControlMapping = new int[DS4_CONTROL_MACRO_ARRAY_LEN]
         {
             0, // DS4Controls.None
             16, // DS4Controls.LXNeg
@@ -779,16 +806,12 @@ namespace DS4Windows
             45, // DS4Controls.Capture
             46, // DS4Controls.SideL
             47, // DS4Controls.SideR
+            48, // DS4Controls.FnL
+            49, // DS4Controls.FnR
+            50, // DS4Controls.BLP
+            51, // DS4Controls.BRP
         };
-
-        // Define here to save some time processing.
-        // It is enough to feel a difference during gameplay.
-        // 201907: Commented out these temp variables because those were not actually used anymore (value was assigned but it was never used anywhere)
-        //private static int[] rsOutCurveModeArray = new int[4] { 0, 0, 0, 0 };
-        //private static int[] lsOutCurveModeArray = new int[4] { 0, 0, 0, 0 };
-        //static bool tempBool = false;
-        //private static double[] tempDoubleArray = new double[4] { 0.0, 0.0, 0.0, 0.0 };
-        //private static int[] tempIntArray = new int[4] { 0, 0, 0, 0 };
+        private static int macroEndIndex = DS4_CONTROL_MACRO_ARRAY_LEN - 1;
 
         // Special macros
         static bool altTabDone = true;
@@ -2269,13 +2292,13 @@ namespace DS4Windows
             {
                 result = false;
             }
-            else if (trigger < 31 && trigger != 26)
+            else if (trigger < SHIFT_TRIGGER_MAPPING_LEN && trigger != TOUCH_FINGER_SHIFT_TRIGGER)
             {
                 DS4Controls ds = shiftTriggerMapping[trigger];
                 result = GetBoolMapping(device, ds, cState, eState, tp, fieldMapping);
             }
             // 26 is a special case. It does not correlate to a direct DS4Controls value
-            else if (trigger == 26)
+            else if (trigger == TOUCH_FINGER_SHIFT_TRIGGER)
             {
                 result = cState.Touch1Finger;
             }
@@ -4048,23 +4071,30 @@ namespace DS4Windows
                                         (device + 1).ToString(), action.details, $"{d.Battery}");
 
                                     AppLogger.LogToGui(prolog, false);
-                                    LoadTempProfile(device, action.details, true, ctrl);
-                                    //LoadProfile(device, false, ctrl);
-
-                                    if (action.uTrigger.Count == 0 && !action.automaticUntrigger)
+                                    Task.Run(() =>
                                     {
-                                        // If the new profile has any actions with the same action key (controls) than this action (which doesn't have untrigger keys) then set status of those actions to wait for the release of the existing action key. 
-                                        List<string> profileActionsNext = getProfileActions(device);
-                                        for (int actionIndexNext = 0, profileListLenNext = profileActionsNext.Count; actionIndexNext < profileListLenNext; actionIndexNext++)
+                                        d.HaltReportingRunAction(() =>
                                         {
-                                            string actionnameNext = profileActionsNext[actionIndexNext];
-                                            SpecialAction actionNext = GetProfileAction(device, actionnameNext);
-                                            int indexNext = GetProfileActionIndexOf(device, actionnameNext);
+                                            LoadTempProfile(device, action.details, true, ctrl);
 
-                                            if (actionNext.controls == action.controls)
-                                                actionDone[indexNext].dev[device] = true;
-                                        }
-                                    }
+                                            //LoadProfile(device, false, ctrl);
+
+                                            if (action.uTrigger.Count == 0 && !action.automaticUntrigger)
+                                            {
+                                                // If the new profile has any actions with the same action key (controls) than this action (which doesn't have untrigger keys) then set status of those actions to wait for the release of the existing action key. 
+                                                List<string> profileActionsNext = getProfileActions(device);
+                                                for (int actionIndexNext = 0, profileListLenNext = profileActionsNext.Count; actionIndexNext < profileListLenNext; actionIndexNext++)
+                                                {
+                                                    string actionnameNext = profileActionsNext[actionIndexNext];
+                                                    SpecialAction actionNext = GetProfileAction(device, actionnameNext);
+                                                    int indexNext = GetProfileActionIndexOf(device, actionnameNext);
+
+                                                    if (actionNext.controls == action.controls)
+                                                        actionDone[indexNext].dev[device] = true;
+                                                }
+                                            }
+                                        });
+                                    });
 
                                     return;
                                 }
@@ -4836,11 +4866,11 @@ namespace DS4Windows
                 byte value = GetByteMapping(device, control, cState, eState, tp, fieldMap);
                 int wheelDir = down ? Global.outputKBMMapping.WHEEL_TICK_DOWN :
                     Global.outputKBMMapping.WHEEL_TICK_UP;
-                double ratio = value / 255.0;
-                //Debug.WriteLine(value);
+                //double ratio = value / 255.0;
+                double ratio = (1.0 - 0.05) * (value / 255.0) + 0.05;
 
-                // Use 4 runs as a full mouse wheel tick
-                double currentWheel = ratio / 4.0;
+                // Use 3 runs as a full mouse wheel tick
+                double currentWheel = ratio / 3.0;
                 stickWheel = currentWheel + stickWheelRemainder;
                 if (stickWheel >= 1.0)
                 {
@@ -5555,7 +5585,7 @@ namespace DS4Windows
             //verticalRemainder = rawMouseY - mouseY;
         }
 
-        private static double remainderCutoff(double dividend, double divisor)
+        public static double remainderCutoff(double dividend, double divisor)
         {
             return dividend - (divisor * (int)(dividend / divisor));
         }
@@ -6559,7 +6589,9 @@ namespace DS4Windows
                 {
                     double currentRate = 1.0 / currentDeviceState.elapsedTime; // Need to express poll time in Hz
                     OneEuroFilter wheelFilter = wheelFilters[device];
-                    result = (int)(wheelFilter.Filter(result, currentRate));
+                    result = (int)(wheelFilter.Filter(result * 1.0005, currentRate));
+                    // Perform clamp again
+                    result = Mapping.ClampInt(maxRangeLeft, result, maxRangeRight);
                 }
 
                 // Debug log output of SA sensor values
@@ -6596,9 +6628,22 @@ namespace DS4Windows
 
                         if (sxAntiDead > 0)
                         {
-                            sxAntiDead *= (outputAxisMax - outputAxisZero);
-                            if (result < 0) return (((result - maxRangeLeft) * (outputAxisZero - Convert.ToInt32(sxAntiDead) - (outputAxisMin))) / (0 - maxRangeLeft)) + (outputAxisMin);
-                            else return (((result - 0) * (outputAxisMax - (outputAxisZero + Convert.ToInt32(sxAntiDead)))) / (maxRangeRight - 0)) + (outputAxisZero + Convert.ToInt32(sxAntiDead));
+                            sxAntiDead *= ((result < 0 ? outputAxisMin : outputAxisMax) - outputAxisZero);
+                            int outputResult = 0;
+                            if (result < 0)
+                            {
+                                //(((result - maxRangeLeft) * (outputAxisZero - Convert.ToInt32(sxAntiDead) - (outputAxisMin))) / (0 - maxRangeLeft)) + (outputAxisMin);
+                                outputResult = (int)((outputAxisMin - (int)sxAntiDead) * ((result - 0) / (double)(maxRangeLeft - 0)) + (int)sxAntiDead);
+                            }
+                            else
+                            {
+                                //(((result - 0) * (outputAxisMax - (outputAxisZero + Convert.ToInt32(sxAntiDead)))) / (maxRangeRight - 0)) + (outputAxisZero + Convert.ToInt32(sxAntiDead));
+                                outputResult = (int)((outputAxisMax - (int)sxAntiDead) * ((result - 0) / (double)(maxRangeRight - 0)) + (int)sxAntiDead);
+                            }
+
+                            return outputResult;
+                            //if (result < 0) return (((result - maxRangeLeft) * (outputAxisZero - Convert.ToInt32(sxAntiDead) - (outputAxisMin))) / (0 - maxRangeLeft)) + (outputAxisMin);
+                            //else return (((result - 0) * (outputAxisMax - (outputAxisZero + Convert.ToInt32(sxAntiDead)))) / (maxRangeRight - 0)) + (outputAxisZero + Convert.ToInt32(sxAntiDead));
                         }
                         else
                         {

@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -49,6 +67,20 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             this.deviceNum = deviceNum;
 
             SpecialActionIndexChanged += SpecialActionsListViewModel_SpecialActionIndexChanged;
+            actionCol.CollectionChanged += ActionCol_CollectionChanged;
+        }
+
+        private void ActionCol_CollectionChanged(object sender,
+            System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Remove)
+            {
+                for (int i = e.OldStartingIndex; i < actionCol.Count; i++)
+                {
+                    // Replace old index with updated index
+                    actionCol[i].Index = i;
+                }
+            }
         }
 
         private void SpecialActionsListViewModel_SpecialActionIndexChanged(object sender, EventArgs e)
@@ -106,7 +138,7 @@ namespace DS4WinWPF.DS4Forms.ViewModels
                     break;
                 case SpecialAction.ActionTypeId.Key:
                     displayName = KeyInterop.KeyFromVirtualKey(int.Parse(action.details)).ToString() +
-                         (action.uTrigger.Count > 0 ? " (Toggle)" : "");
+                         (action.keyType.HasFlag(DS4KeyType.Toggle) ? " (Toggle)" : "");
                     break;
                 case SpecialAction.ActionTypeId.BatteryCheck:
                     displayName = Properties.Resources.CheckBattery;
@@ -144,7 +176,8 @@ namespace DS4WinWPF.DS4Forms.ViewModels
         public void RemoveAction(SpecialActionItem item)
         {
             Global.RemoveAction(item.SpecialAction.name);
-            actionCol.RemoveAt(specialActionIndex);
+            int itemIndex = item.Index;
+            actionCol.RemoveAt(itemIndex);
             Global.ProfileActions[deviceNum].Remove(item.SpecialAction.name);
             Global.CacheExtraProfileInfo(deviceNum);
         }

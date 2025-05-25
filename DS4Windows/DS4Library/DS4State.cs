@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 
 namespace DS4Windows
 {
@@ -11,7 +29,7 @@ namespace DS4Windows
         public bool L1, L2Btn, L3, R1, R2Btn, R3;
         public bool Share, Options, PS, Mute, Touch1, Touch2, TouchButton, TouchRight,
             TouchLeft, Touch1Finger, Touch2Fingers, OutputTouchButton,
-            Capture, SideL, SideR;
+            Capture, SideL, SideR, FnL, FnR, BLP, BRP;
         public byte Touch1Identifier, Touch2Identifier;
         public byte LX, RX, LY, RY, L2, R2;
         public byte L2Raw, R2Raw;
@@ -54,7 +72,8 @@ namespace DS4Windows
             L1 = L2Btn = L3 = R1 = R2Btn = R3 = false;
             Share = Options = PS = Mute = Touch1 = Touch2 = TouchButton =
                 OutputTouchButton = TouchRight = TouchLeft =
-                Capture = SideL = SideR = false;
+                Capture = SideL = SideR =
+                FnL = FnR = BLP = BRP = false;
             Touch1Finger = Touch2Fingers = false;
             LX = RX = LY = RY = 128;
             L2 = R2 = 0;
@@ -106,6 +125,10 @@ namespace DS4Windows
             Options = state.Options;
             PS = state.PS;
             Mute = state.Mute;
+            FnL = state.FnL;
+            FnR = state.FnR;
+            BLP = state.BLP;
+            BRP = state.BRP;
             Capture = state.Capture;
             SideL = state.SideL;
             SideR = state.SideR;
@@ -176,6 +199,10 @@ namespace DS4Windows
             state.Options = Options;
             state.PS = PS;
             state.Mute = Mute;
+            state.FnL = FnL;
+            state.FnR = FnR;
+            state.BLP = BLP;
+            state.BRP = BRP;
             state.Capture = Capture;
             state.SideL = SideL;
             state.SideR = SideR;

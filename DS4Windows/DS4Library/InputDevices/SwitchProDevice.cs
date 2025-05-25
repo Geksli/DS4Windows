@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -248,6 +266,7 @@ namespace DS4Windows.InputDevices
             conType = DetermineConnectionType(hDevice);
             optionsStore = nativeOptionsStore = new SwitchProControllerOptions(deviceType);
             SetupOptionsEvents();
+            Mac = hDevice.ReadSerial(SerialReportID);
 
             if (conType == ConnectionType.BT)
             {
@@ -653,7 +672,11 @@ namespace DS4Windows.InputDevices
                         }
                     }
 
-                    Report?.Invoke(this, EventArgs.Empty);
+                    if (fireReport)
+                    {
+                        Report?.Invoke(this, EventArgs.Empty);
+                    }
+
                     WriteReport();
 
                     //forceWrite = false;
@@ -691,7 +714,7 @@ namespace DS4Windows.InputDevices
             if (conType == ConnectionType.USB)
             {
                 RunUSBSetup();
-                Thread.Sleep(500);
+                //Thread.Sleep(500);
             }
 
             //Thread.Sleep(1000);
@@ -743,10 +766,10 @@ namespace DS4Windows.InputDevices
             EnableFastPollRate();
 
             // USB Connections seem to need a delay after switching input modes
-            if (conType == ConnectionType.USB)
-            {
-                Thread.Sleep(1000);
-            }
+            //if (conType == ConnectionType.USB)
+            //{
+            //    Thread.Sleep(1000);
+            //}
 
             SetInitRumble();
             //Thread.Sleep(1000);
@@ -775,6 +798,7 @@ namespace DS4Windows.InputDevices
             data[0] = 0x80; data[1] = 0x01;
             //result = hidDevice.WriteAsyncOutputReportViaInterrupt(data);
             result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+            hDevice.fileStream.Flush();
             //Array.Clear(tmpReport, 0 , 64);
             //res = hidDevice.ReadWithFileStream(tmpReport);
             //Console.WriteLine("TEST BYTE: {0}", tmpReport[2]);
@@ -783,21 +807,24 @@ namespace DS4Windows.InputDevices
             //result = hidDevice.WriteOutputReportViaControl(data);
             //Thread.Sleep(2000);
             //Thread.Sleep(1000);
-            result = hDevice.WriteOutputReportViaControl(data);
+            result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+            hDevice.fileStream.Flush();
 
             data[0] = 0x80; data[1] = 0x03; // 3Mbit baud rate
             //result = hidDevice.WriteAsyncOutputReportViaInterrupt(data);
-            result = hDevice.WriteOutputReportViaControl(data);
+            result = hDevice.WriteOutputReportViaInterrupt(data, 0);
             //Thread.Sleep(2000);
+            hDevice.fileStream.Flush();
 
             data[0] = 0x80; data[1] = 0x02; // Handshake at new baud rate
-            result = hDevice.WriteOutputReportViaControl(data);
+            result = hDevice.WriteOutputReportViaInterrupt(data, 0);
             //Thread.Sleep(1000);
             //result = hidDevice.WriteOutputReportViaInterrupt(command, 500);
             //Thread.Sleep(2000);
+            hDevice.fileStream.Flush();
 
             data[0] = 0x80; data[1] = 0x4; // Prevent HID timeout
-            result = hDevice.WriteOutputReportViaControl(data);
+            result = hDevice.WriteOutputReportViaInterrupt(data, 0);
             hDevice.fileStream.Flush();
             //result = hidDevice.WriteOutputReportViaInterrupt(command, 500);
         }
@@ -1040,13 +1067,13 @@ namespace DS4Windows.InputDevices
 
             if (foundUserCalib)
             {
-                rightStickXData.max = (ushort)(rightStickCalib[2] + rightStickCalib[4]);
+                rightStickXData.max = (ushort)(rightStickCalib[2] + rightStickCalib[0]);
                 rightStickXData.mid = rightStickCalib[2];
-                rightStickXData.min = (ushort)(rightStickCalib[2] - rightStickCalib[0]);
+                rightStickXData.min = (ushort)(rightStickCalib[2] - rightStickCalib[4]);
 
-                rightStickYData.max = (ushort)(rightStickCalib[3] + rightStickCalib[5]);
+                rightStickYData.max = (ushort)(rightStickCalib[3] + rightStickCalib[1]);
                 rightStickYData.mid = rightStickCalib[3];
-                rightStickYData.min = (ushort)(rightStickCalib[3] - rightStickCalib[1]);
+                rightStickYData.min = (ushort)(rightStickCalib[3] - rightStickCalib[5]);
             }
             else
             {

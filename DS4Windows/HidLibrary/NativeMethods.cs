@@ -110,7 +110,9 @@ namespace DS4Windows
         internal const int DEVICE_NOTIFY_SERVICE_HANDLE = 1;
         internal const int DEVICE_NOTIFY_WINDOW_HANDLE = 0;
         internal const int WM_DEVICECHANGE = 0x219;
+        internal const short DIGCF_DEFAULT = 0x1;
         internal const short DIGCF_PRESENT = 0x2;
+        internal const short DIGCF_PROFILE = 0x8;
         internal const short DIGCF_DEVICEINTERFACE = 0x10;
         internal const int DIGCF_ALLCLASSES = 0x4;
         internal const int DICS_ENABLE = 1;
@@ -149,6 +151,11 @@ namespace DS4Windows
         internal const int SPDRP_SERVICE = 4;
         internal const int SPDRP_UI_NUMBER = 0x10;
         internal const int SPDRP_UI_NUMBER_DESC_FORMAT = 0x1d;
+
+        internal const uint CM_LOCATE_DEVNODE_NORMAL = 0x00;
+        internal const uint CM_LOCATE_DEVNODE_PHANTOM = 0x01;
+        internal const uint CM_LOCATE_DEVNODE_CANCELREMOVE = 0x02;
+
 
         internal const int SPDRP_UPPERFILTERS = 0x11;
 
@@ -225,6 +232,48 @@ namespace DS4Windows
             public ulong pid;
         }
 
+        [Flags]
+        internal enum DEVPROPTYPE : ulong
+        {
+            DEVPROP_TYPEMOD_ARRAY = 0x00001000,
+            DEVPROP_TYPEMOD_LIST = 0x00002000,
+
+            DEVPROP_TYPE_EMPTY = 0x00000000,  // nothing, no property data
+            DEVPROP_TYPE_NULL = 0x00000001,  // null property data
+            DEVPROP_TYPE_SBYTE = 0x00000002,  // 8-bit signed int (SBYTE)
+            DEVPROP_TYPE_BYTE = 0x00000003,  // 8-bit unsigned int (BYTE)
+            DEVPROP_TYPE_INT16 = 0x00000004,  // 16-bit signed int (SHORT)
+            DEVPROP_TYPE_UINT16 = 0x00000005,  // 16-bit unsigned int (USHORT)
+            DEVPROP_TYPE_INT32 = 0x00000006,  // 32-bit signed int (LONG)
+            DEVPROP_TYPE_UINT32 = 0x00000007,  // 32-bit unsigned int (ULONG)
+            DEVPROP_TYPE_INT64 = 0x00000008,  // 64-bit signed int (LONG64)
+            DEVPROP_TYPE_UINT64 = 0x00000009,  // 64-bit unsigned int (ULONG64)
+            DEVPROP_TYPE_FLOAT = 0x0000000A,  // 32-bit floating-point (FLOAT)
+            DEVPROP_TYPE_DOUBLE = 0x0000000B,  // 64-bit floating-point (DOUBLE)
+            DEVPROP_TYPE_DECIMAL = 0x0000000C,  // 128-bit data (DECIMAL)
+            DEVPROP_TYPE_GUID = 0x0000000D,  // 128-bit unique identifier (GUID)
+            DEVPROP_TYPE_CURRENCY = 0x0000000E,  // 64 bit signed int currency value (CURRENCY)
+            DEVPROP_TYPE_DATE = 0x0000000F,  // date (DATE)
+            DEVPROP_TYPE_FILETIME = 0x00000010,  // filetime (FILETIME)
+            DEVPROP_TYPE_BOOLEAN = 0x00000011,  // 8-bit boolean (DEVPROP_BOOLEAN)
+            DEVPROP_TYPE_STRING = 0x00000012,  // null-terminated string
+            DEVPROP_TYPE_STRING_LIST = (DEVPROP_TYPE_STRING | DEVPROP_TYPEMOD_LIST), // multi-sz string list
+            DEVPROP_TYPE_SECURITY_DESCRIPTOR = 0x00000013,  // self-relative binary SECURITY_DESCRIPTOR
+            DEVPROP_TYPE_SECURITY_DESCRIPTOR_STRING = 0x00000014,  // security descriptor string (SDDL format)
+            DEVPROP_TYPE_DEVPROPKEY = 0x00000015,  // device property key (DEVPROPKEY)
+            DEVPROP_TYPE_DEVPROPTYPE = 0x00000016,  // device property type (DEVPROPTYPE)
+            DEVPROP_TYPE_BINARY = (DEVPROP_TYPE_BYTE | DEVPROP_TYPEMOD_ARRAY),  // custom binary data
+            DEVPROP_TYPE_ERROR = 0x00000017,  // 32-bit Win32 system error code
+            DEVPROP_TYPE_NTSTATUS = 0x00000018, // 32-bit NTSTATUS code
+            DEVPROP_TYPE_STRING_INDIRECT = 0x00000019, // string resource (@[path\]<dllname>,-<strId>)
+
+            MAX_DEVPROP_TYPE = 0x00000019,
+            MAX_DEVPROP_TYPEMOD = 0x00002000,
+
+            DEVPROP_MASK_TYPE = 0x00000FFF,
+            DEVPROP_MASK_TYPEMOD = 0x0000F000
+        }
+
         [StructLayout(LayoutKind.Sequential)]
         internal struct SP_CLASSINSTALL_HEADER
         {
@@ -291,7 +340,13 @@ namespace DS4Windows
         internal static extern int SetupDiCreateDeviceInfoList(ref Guid classGuid, int hwndParent);
 
         [DllImport("setupapi.dll")]
+        internal static extern IntPtr SetupDiCreateDeviceInfoList(IntPtr guid, int hwndParent);
+
+        [DllImport("setupapi.dll")]
         static internal extern int SetupDiDestroyDeviceInfoList(IntPtr deviceInfoSet);
+
+        [DllImport("setupapi.dll")]
+        internal static extern bool SetupDiOpenDeviceInfo(IntPtr deviceInfoSet, string deviceInstanceId, IntPtr parent, uint flags, ref SP_DEVINFO_DATA deviceInfoData);
 
         [DllImport("setupapi.dll")]
         static internal extern bool SetupDiEnumDeviceInterfaces(IntPtr deviceInfoSet, ref SP_DEVINFO_DATA deviceInfoData, ref Guid interfaceClassGuid, int memberIndex, ref SP_DEVICE_INTERFACE_DATA deviceInterfaceData);
@@ -322,6 +377,9 @@ namespace DS4Windows
 
         [DllImport("setupapi.dll", SetLastError = true)]
         static internal extern bool SetupDiClassGuidsFromName(string ClassName, ref Guid ClassGuidArray1stItem, UInt32 ClassGuidArraySize, out UInt32 RequiredSize);
+
+        [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode)]
+        static internal extern uint CM_Get_Device_Interface_Property(string pszDeviceInterface, ref DEVPROPKEY PropertyKey, out DEVPROPTYPE PropertyType, byte[] PropertyBuffer, ref uint PropertyBufferSize, uint ulFlags);
 
         [DllImport("user32.dll")]
         static internal extern bool UnregisterDeviceNotification(IntPtr handle);

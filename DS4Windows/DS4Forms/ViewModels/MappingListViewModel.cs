@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -107,6 +125,11 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             mappings.Add(new MappedControl(devIndex, DS4Controls.SwipeLeft, "Swipe Left", devType));
             mappings.Add(new MappedControl(devIndex, DS4Controls.SwipeRight, "Swipe Right", devType));
 
+            mappings.Add(new MappedControl(devIndex, DS4Controls.FnL, "Function Left", devType));
+            mappings.Add(new MappedControl(devIndex, DS4Controls.FnR, "Function Right", devType));
+            mappings.Add(new MappedControl(devIndex, DS4Controls.BLP, "Bottom Left Paddle", devType));
+            mappings.Add(new MappedControl(devIndex, DS4Controls.BRP, "Bottom Right Paddle", devType));
+            
             int controlIndex = 0;
             foreach (MappedControl mapped in mappings)
             {
@@ -330,6 +353,10 @@ namespace DS4WinWPF.DS4Forms.ViewModels
                 case 28: return "Capture";
                 case 29: return "Side L";
                 case 30: return "Side R";
+                case 31: return "Function Left";
+                case 32: return "Function Right";
+                case 33: return "Bottom Left Paddle";
+                case 43: return "Bottom Right Paddle";
                 default: return "";
             }
         }

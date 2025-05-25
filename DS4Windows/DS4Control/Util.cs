@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security;
@@ -197,12 +215,23 @@ namespace DS4Windows
             }
         }
 
-        public static void StartProcessHelper(string path)
+        /// <summary>
+        /// Use admin check to determine if process can be launched normally (normal user)
+        /// or launched through Windows Explorer to de-elevate a process
+        /// </summary>
+        /// <param name="path">Program path or URL</param>
+        /// <param name="argument">Extra arguments to pass to the launching program</param>
+        public static void StartProcessHelper(string path, string arguments = null)
         {
             if (!Global.IsAdministrator())
             {
                 ProcessStartInfo startInfo = new ProcessStartInfo(path);
                 startInfo.UseShellExecute = true;
+                if (!string.IsNullOrEmpty(arguments))
+                {
+                    startInfo.Arguments = arguments;
+                }
+
                 try
                 {
                     using (Process temp = Process.Start(startInfo))
@@ -213,7 +242,7 @@ namespace DS4Windows
             }
             else
             {
-                StartProcessInExplorer(path);
+                StartProcessInExplorer(path, arguments);
             }
         }
 
@@ -222,13 +251,22 @@ namespace DS4Windows
         /// as under the Admin account
         /// </summary>
         /// <param name="path">Program path or URL</param>
-        public static void StartProcessInExplorer(string path)
+        /// <param name="argument">Extra arguments to pass to the launching program</param>
+        public static void StartProcessInExplorer(string path, string arguments = null)
         {
             ProcessStartInfo startInfo = new ProcessStartInfo();
             startInfo.FileName = "explorer.exe";
             // Need to place Path/URL in double quotes to allow equals sign to not be
             // interpreted as a delimiter
-            startInfo.Arguments = $"\"{path}\"";
+            if (string.IsNullOrEmpty(arguments))
+            {
+                startInfo.Arguments = $"\"{path}\"";
+            }
+            else
+            {
+                startInfo.Arguments = $"\"{path}\" \"{arguments}\"";
+            }
+
             startInfo.WindowStyle = ProcessWindowStyle.Hidden;
             startInfo.UseShellExecute = true;
             try
@@ -305,37 +343,68 @@ namespace DS4Windows
             return releaseId;
         }
 
+        public static bool IsNet8DesktopRuntimeAvailable()
+        {
+            bool result = false;
+            string archString = Environment.Is64BitProcess ? "x64" : "x86";
+
+            using (RegistryKey subKey =
+                Registry.LocalMachine.OpenSubKey($@"SOFTWARE\WOW6432Node\dotnet\Setup\InstalledVersions\{archString}\sharedfx\Microsoft.WindowsDesktop.App"))
+            {
+                if (subKey != null)
+                {
+                    foreach (string valueName in subKey.GetValueNames())
+                    {
+                        if (!string.IsNullOrEmpty(valueName) && valueName.Contains("8."))
+                        {
+                            result = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        public static bool SystemAppsUsingDarkTheme()
+        {
+            bool result = false;
+            if (int.TryParse(Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", "0").ToString(), out int lightEnabled))
+            {
+                result = lightEnabled == 0;
+            }
+
+            return result;
+        }
+
         /// <summary>
-        /// DS4Windows and HidHideClient need to be on same drive. Assume default
-        /// install path. Don't care if someone has changed the install path.
-        /// Return found path or string.Empty if path not found. Good enough for me.
+        /// Use HidHide MSI registry info to try to find HidHideClient
+        /// install path. Return found path or string.Empty if path not found.
+        /// Good enough for me.
         /// </summary>
         /// <returns></returns>
         public static string GetHidHideClientPath()
         {
             string result = string.Empty;
-            string driveLetter = Path.GetPathRoot(Global.exedirpath);
-            string[] testPaths = new string[]
+            string installLocation =
+                Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{48DD38C8-443E-4474-A249-AB32389E08F6}", "InstallLocation", "")?.ToString() ?? string.Empty;
+            if (!string.IsNullOrEmpty(installLocation))
             {
-                Path.Combine(driveLetter, "Program Files",
-                    "Nefarius Software Solutions e.U", "HidHideClient", "HidHideClient.exe"),
-
-                Path.Combine(driveLetter, @"Program Files (x86)",
-                    "Nefarius Software Solutions e.U", "HidHideClient", "HidHideClient.exe"),
-
-                Path.Combine(driveLetter, @"Program Files",
-                    "Nefarius Software Solutions", "HidHide", "x64", "HidHideClient.exe"),
-
-                Path.Combine(driveLetter, @"Program Files",
-                    "Nefarius Software Solutions", "HidHide", "x86", "HidHideClient.exe"),
-            };
-
-            foreach(string testPath in testPaths)
-            {
-                if (File.Exists(testPath))
+                string[] testPaths = new string[]
                 {
-                    result = testPath;
-                    break;
+                    Path.Combine(installLocation, "HidHideClient.exe"),
+                    Path.Combine(installLocation, "x64", "HidHideClient.exe"),
+                    Path.Combine(installLocation, "x86", "HidHideClient.exe"),
+                };
+
+                foreach (string testPath in testPaths)
+                {
+                    if (File.Exists(testPath))
+                    {
+                        result = testPath;
+                        break;
+                    }
                 }
             }
 

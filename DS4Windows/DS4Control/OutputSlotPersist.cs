@@ -1,4 +1,21 @@
-﻿using DS4Windows;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -6,6 +23,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using System.Xml.Serialization;
+using DS4Windows;
+using DS4WinWPF.DS4Control.DTOXml;
 
 namespace DS4WinWPF.DS4Control
 {
@@ -16,38 +36,22 @@ namespace DS4WinWPF.DS4Control
         public static bool ReadConfig(OutputSlotManager slotManager)
         {
             bool result = false;
+
             string output_path = Path.Combine(Global.appdatapath, CONFIG_FILENAME);
             if (File.Exists(output_path))
             {
-                XmlDocument m_Xdoc = new XmlDocument();
-                try { m_Xdoc.Load(output_path); }
-                catch (UnauthorizedAccessException) { }
-                catch (XmlException) { }
-
-                XmlElement rootElement = m_Xdoc.DocumentElement;
-                if (rootElement == null) return false;
-
-                foreach(XmlElement element in rootElement.GetElementsByTagName("Slot"))
+                XmlSerializer serializer = new XmlSerializer(typeof(OutputSlotPersistDTO));
+                using StreamReader sr = new StreamReader(output_path);
+                try
                 {
-                    OutSlotDevice tempDev = null;
-                    string temp = element.GetAttribute("idx");
-                    if (int.TryParse(temp, out int idx) && idx >= 0 && idx <= 3)
-                    {
-                        tempDev = slotManager.OutputSlots[idx];
-                    }
-
-                    if (tempDev != null)
-                    {
-                        tempDev.CurrentReserveStatus = OutSlotDevice.ReserveStatus.Permanent;
-                        XmlNode tempNode = element.SelectSingleNode("DeviceType");
-                        if (tempNode != null && Enum.TryParse(tempNode.InnerText, out OutContType tempType))
-                        {
-                            tempDev.PermanentType = tempType;
-                        }
-                    }
+                    OutputSlotPersistDTO dto = serializer.Deserialize(sr) as OutputSlotPersistDTO;
+                    dto.MapTo(slotManager);
+                    result = true;
                 }
-
-                result = true;
+                catch (InvalidOperationException)
+                {
+                    result = false;
+                }
             }
 
             return result;
@@ -56,44 +60,50 @@ namespace DS4WinWPF.DS4Control
         public static bool WriteConfig(OutputSlotManager slotManager)
         {
             bool result = false;
-            XmlDocument m_Xdoc = new XmlDocument();
-            XmlNode rootNode;
-            rootNode = m_Xdoc.CreateXmlDeclaration("1.0", "utf-8", string.Empty);
-            m_Xdoc.AppendChild(rootNode);
-
-            rootNode = m_Xdoc.CreateComment(string.Format(" Made with DS4Windows version {0} ", Global.exeversion));
-            m_Xdoc.AppendChild(rootNode);
-
-            rootNode = m_Xdoc.CreateWhitespace("\r\n");
-            m_Xdoc.AppendChild(rootNode);
-
-            XmlElement baseElement = m_Xdoc.CreateElement("OutputSlots", null);
-            baseElement.SetAttribute("app_version", Global.exeversion);
-
-            int idx = 0;
-            foreach (OutSlotDevice dev in slotManager.OutputSlots)
-            {
-                if (dev.CurrentReserveStatus == OutSlotDevice.ReserveStatus.Permanent)
-                {
-                    XmlElement slotElement = m_Xdoc.CreateElement("Slot");
-                    slotElement.SetAttribute("idx", idx.ToString());
-
-                    XmlElement propElement;
-                    propElement = m_Xdoc.CreateElement("DeviceType");
-                    propElement.InnerText = dev.PermanentType.ToString();
-                    slotElement.AppendChild(propElement);
-
-                    baseElement.AppendChild(slotElement);
-                }
-
-                idx++;
-            }
-
-            m_Xdoc.AppendChild(baseElement);
 
             string output_path = Path.Combine(Global.appdatapath, CONFIG_FILENAME);
-            try { m_Xdoc.Save(output_path); result = true; }
-            catch (UnauthorizedAccessException) { result = false; }
+            string testStr = string.Empty;
+            XmlSerializer serializer = new XmlSerializer(typeof(OutputSlotPersistDTO));
+            using (Utf8StringWriter strWriter = new Utf8StringWriter())
+            {
+                using XmlWriter xmlWriter = XmlWriter.Create(strWriter,
+                    new XmlWriterSettings()
+                    {
+                        Encoding = Encoding.UTF8,
+                        Indent = true,
+                    });
+
+                // Write header explicitly
+                xmlWriter.WriteStartDocument();
+                xmlWriter.WriteComment(string.Format(" Made with DS4Windows version {0} ", Global.exeversion));
+                xmlWriter.WriteWhitespace("\r\n");
+                xmlWriter.WriteWhitespace("\r\n");
+
+                // Write root element and children
+                OutputSlotPersistDTO dto = new OutputSlotPersistDTO();
+                dto.MapFrom(slotManager);
+                // Omit xmlns:xsi and xmlns:xsd from output
+                serializer.Serialize(xmlWriter, dto,
+                    new XmlSerializerNamespaces(new[] { XmlQualifiedName.Empty }));
+                xmlWriter.Flush();
+                xmlWriter.Close();
+
+                testStr = strWriter.ToString();
+                //Trace.WriteLine("TEST OUTPUT");
+                //Trace.WriteLine(testStr);
+            }
+
+            try
+            {
+                using (StreamWriter sw = new StreamWriter(output_path, false))
+                {
+                    sw.Write(testStr);
+                }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                result = false;
+            }
 
             return result;
         }

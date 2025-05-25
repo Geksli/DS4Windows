@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading;
@@ -128,6 +146,7 @@ namespace DS4Windows
     {
         public DS4LightbarState lightbarState;
         public DS4ForceFeedbackState rumbleState;
+        public bool dirty;
 
         public bool Equals(DS4HapticState other)
         {
@@ -620,7 +639,6 @@ namespace DS4Windows
             displayName = disName;
             this.featureSet = featureSet;
 
-            conType = HidConnectionType(hDevice);
             exclusiveStatus = ExclusiveStatus.Shared;
             if (hidDevice.IsExclusive)
             {
@@ -630,7 +648,6 @@ namespace DS4Windows
             if (this.FeatureSet != VidPidFeatureSet.DefaultDS4)
                 AppLogger.LogToGui($"The gamepad {displayName} ({conType}) uses custom feature set ({this.FeatureSet.ToString("F")})", false);
 
-            Mac = hDevice.ReadSerial(SerialReportID);
             runCalib = (this.featureSet & VidPidFeatureSet.NoGyroCalib) == 0;
 
             touchpad = new DS4Touchpad();
@@ -639,6 +656,9 @@ namespace DS4Windows
 
         public virtual void PostInit()
         {
+            conType = HidConnectionType(hDevice);
+            Mac = hDevice.ReadSerial(SerialReportID);
+
             //HidDevice hidDevice = hDevice;
             deviceType = InputDevices.InputDeviceType.DS4;
             gyroMouseSensSettings = new GyroMouseSens();
@@ -859,7 +879,10 @@ namespace DS4Windows
                     exitInputThread = true;
                     //ds4Input.Interrupt();
                     if (!abortInputThread)
+                    {
+                        hDevice.CancelIO();
                         ds4Input.Join();
+                    }
                 }
                 catch (Exception e)
                 {
@@ -957,6 +980,20 @@ namespace DS4Windows
             return synced;
         }
 
+        /// <summary>
+        /// Used to tell the input thread to temporarily stop firing the
+        /// Report event. Keeps linked methods from being executed
+        /// </summary>
+        protected bool fireReport = true;
+        public bool FireReport
+        {
+            get => fireReport;
+            set
+            {
+                fireReport = value;
+            }
+        }
+
         public double Latency = 0.0;
         public string error;
         public bool firstReport = true;
@@ -973,6 +1010,7 @@ namespace DS4Windows
         protected const int BT_INPUT_REPORT_CRC32_POS = 74; //last 4 bytes of the 78-sized input report are crc32
         public const uint DefaultPolynomial = 0xedb88320u;
         private const int CRC32_NUM_ATTEMPTS = 10;
+        private const int SONYWA_FEATURE_REPORT_LENGTH = 64;
         protected uint HamSeed = 2351727372;
 
         protected unsafe void performDs4Input()
@@ -1442,7 +1480,7 @@ namespace DS4Windows
                         }
                     }
 
-                    if (Report != null)
+                    if (fireReport && Report != null)
                         Report(this, EventArgs.Empty);
 
                     sendOutputReport(syncWriteReport, forceWrite);
@@ -1506,6 +1544,7 @@ namespace DS4Windows
                         change = byteR[i] != byteB[i];
                 }
 
+                change = change || currentHap.dirty;
                 /*if (change)
                 {
                     Console.WriteLine("CHANGE: {0} {1} {2} {3} {4} {5}", currentHap.LightBarColor.red, currentHap.LightBarColor.green, currentHap.LightBarColor.blue, currentHap.RumbleMotorStrengthRightLightFast, currentHap.RumbleMotorStrengthLeftHeavySlow, DateTime.Now.ToString());
@@ -1535,6 +1574,7 @@ namespace DS4Windows
                         change = byteR[i] != byteB[i];
                 }
 
+                change = change || currentHap.dirty;
                 haptime = haptime || change;
             }
         }
@@ -1655,6 +1695,8 @@ namespace DS4Windows
                 StopOutputUpdate();
                 exitOutputThread = true;
             }
+
+            currentHap.dirty = false;
         }
 
         // Perform outReportBuffer copy on a separate thread to save
@@ -1756,10 +1798,10 @@ namespace DS4Windows
         public virtual bool DisconnectDongle(bool remove = false)
         {
             bool result = false;
-            byte[] disconnectReport = new byte[65];
+            byte[] disconnectReport = new byte[SONYWA_FEATURE_REPORT_LENGTH];
             disconnectReport[0] = 0xe2;
             disconnectReport[1] = 0x02;
-            Array.Clear(disconnectReport, 2, 63);
+            Array.Clear(disconnectReport, 2, SONYWA_FEATURE_REPORT_LENGTH-2);
 
             if (remove)
                 StopOutputUpdate();
@@ -1793,6 +1835,7 @@ namespace DS4Windows
             testRumble.rumbleState.RumbleMotorStrengthRightLightFast = rightLightFastMotor;
             testRumble.rumbleState.RumbleMotorStrengthLeftHeavySlow = leftHeavySlowMotor;
             testRumble.rumbleState.RumbleMotorsExplicitlyOff = rightLightFastMotor == 0 && leftHeavySlowMotor == 0;
+            testRumble.dirty = true;
 
             // If rumble autostop timer (msecs) is enabled for this device then restart autostop timer everytime rumble is modified (or stop the timer if rumble is set to zero)
             if (rumbleAutostopTime > 0)
@@ -1815,6 +1858,9 @@ namespace DS4Windows
                 //currentHap.rumbleState.RumbleMotorStrengthRightLightFast = testRumble.rumbleState.RumbleMotorStrengthRightLightFast;
                 currentHap.rumbleState = testRumble.rumbleState;
             }
+
+            currentHap.dirty = testRumble.dirty;
+            testRumble.dirty = false;
         }
 
         public DS4State getRawCurrentState()
@@ -1886,10 +1932,16 @@ namespace DS4Windows
         public void SetHapticState(ref DS4HapticState hs)
         {
             currentHap = hs;
+            currentHap.dirty = true;
         }
 
         public void SetLightbarState(ref DS4LightbarState lightState)
         {
+            if (!currentHap.lightbarState.Equals(lightState))
+            {
+                currentHap.dirty = true;
+            }
+
             currentHap.lightbarState = lightState;
         }
 
@@ -1924,6 +1976,35 @@ namespace DS4Windows
             {
                 eventQueue.Enqueue(act);
                 hasInputEvts = true;
+            }
+        }
+
+        /// <summary>
+        /// Must not be run from input thread. Waits for input thread to be in a wait state
+        /// and then tell thread to no longer invoke the Report event. Input thread will then
+        /// resume followed by invoking the action passed. Flag will be set to have
+        /// Report event to resume being invoked after
+        /// </summary>
+        /// <param name="act">Action to execute in current thread</param>
+        public void HaltReportingRunAction(Action act)
+        {
+            // Wait for controller to be in a wait period
+            bool result = readWaitEv.Wait(millisecondsTimeout: 500);
+            if (result)
+            {
+                readWaitEv.Reset();
+
+                // Tell device to no longer fire reports
+                fireReport = false;
+
+                // Flag is set. Allow input thread to resume
+                readWaitEv.Set();
+
+                // Invoke main desired action
+                act?.Invoke();
+
+                // Start firing reports again
+                fireReport = true;
             }
         }
 

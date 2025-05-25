@@ -1,4 +1,22 @@
-﻿using DS4Windows;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using DS4Windows;
 using System.Windows;
 
 namespace DS4WinWPF.DS4Forms
@@ -19,21 +37,6 @@ namespace DS4WinWPF.DS4Forms
         private void ChangeLogLink_Click(object sender, RoutedEventArgs e)
         {
             Util.StartProcessHelper("https://docs.google.com/document/d/1CovpH08fbPSXrC6TmEprzgPwCe0tTjQ_HTFfDotpmxk/edit?usp=sharing");
-        }
-
-        private void PaypalLink_Click(object sender, RoutedEventArgs e)
-        {
-            Util.StartProcessHelper("https://paypal.me/ryochan7");
-        }
-
-        private void PatreonLink_Click(object sender, RoutedEventArgs e)
-        {
-            Util.StartProcessHelper("https://patreon.com/user?u=501036");
-        }
-
-        private void SubscribeStartLink_Click(object sender, RoutedEventArgs e)
-        {
-            Util.StartProcessHelper("https://subscribestar.com/ryochan7");
         }
 
         private void SiteLink_Click(object sender, RoutedEventArgs e)
@@ -59,21 +62,6 @@ namespace DS4WinWPF.DS4Forms
         private void ElectrobrainsLink_Click(object sender, RoutedEventArgs e)
         {
             Util.StartProcessHelper("https://code.google.com/r/brianfundakowskifeldman-ds4windows/");
-        }
-
-        private void YoutubeSocialBtn_Click(object sender, RoutedEventArgs e)
-        {
-            Util.StartProcessHelper("https://www.youtube.com/channel/UCIoUA_XLlCSZbvZGeg3Byeg");
-        }
-
-        private void TwitterSocialBtn_Click(object sender, RoutedEventArgs e)
-        {
-            Util.StartProcessHelper("https://twitter.com/ds4windows");
-        }
-
-        private void GithubSocialBtn_Click(object sender, RoutedEventArgs e)
-        {
-            Util.StartProcessHelper("https://github.com/Ryochan7/DS4Windows");
         }
 
         private void ViGEmBusLink_Click(object sender, RoutedEventArgs e)
@@ -109,42 +97,6 @@ namespace DS4WinWPF.DS4Forms
         private void VJoyInterfaceLink_Click(object sender, RoutedEventArgs e)
         {
             Util.StartProcessHelper("https://github.com/shauleiz/vJoy/tree/master/apps/common/vJoyInterfaceCS");
-        }
-
-        private void DeviceManagementLink_Click(object sender, RoutedEventArgs e)
-        {
-            Util.StartProcessHelper("https://github.com/nefarius/Nefarius.Utilities.DeviceManagement");
-        }
-
-        private void BuyCoffeeLink_Click(object sender, RoutedEventArgs e)
-        {
-            Util.StartProcessHelper("https://buymeacoffee.com/ryochan7");
-        }
-
-        private void PoastSocialBtn_Click(object sender, RoutedEventArgs e)
-        {
-            Util.StartProcessHelper("https://poa.st/@DS4Windows");
-        }
-    }
-
-    public class AboutImgPathLocations
-    {
-        private string gitHubImg =
-            $"{Global.RESOURCES_PREFIX}/social/GitHub-Mark-64px.png";
-        public string GitHubImg { get => gitHubImg; }
-
-        public AboutImgPathLocations()
-        {
-            App current = App.Current as App;
-            if (current != null)
-            {
-                PopulateFromAppResources(current);
-            }
-        }
-
-        private void PopulateFromAppResources(App currentApp)
-        {
-            gitHubImg = $"{Global.RESOURCES_PREFIX}/social/{currentApp.FindResource("GitHubImg")}";
         }
     }
 }

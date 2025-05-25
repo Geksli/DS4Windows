@@ -1,3 +1,21 @@
+/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -6,7 +24,6 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Threading;
 using DS4Windows.InputDevices;
-using Nefarius.Utilities.DeviceManagement.PnP;
 
 namespace DS4Windows
 {
@@ -119,6 +136,7 @@ namespace DS4Windows
         internal const int SWITCH_PRO_PRODUCT_ID = 0x2009;
         internal const int JOYCON_L_PRODUCT_ID = 0x2006;
         internal const int JOYCON_R_PRODUCT_ID = 0x2007;
+        internal const int JOYCON_CHARGING_GRIP_PRODUCT_ID = 0x200E;
 
         // https://support.steampowered.com/kb_article.php?ref=5199-TOKV-4426&l=english web site has a list of other PS4 compatible device VID/PID values and brand names. 
         // However, not all those are guaranteed to work with DS4Windows app so support is added case by case when users of DS4Windows app tests non-official DS4 gamepads.
@@ -129,6 +147,7 @@ namespace DS4Windows
             new VidPidInfo(SONY_VID, 0x5C4, "DS4 v.1"),
             new VidPidInfo(SONY_VID, 0x09CC, "DS4 v.2", InputDeviceType.DS4),
             new VidPidInfo(SONY_VID, 0x0CE6, "DualSense", InputDeviceType.DualSense, VidPidFeatureSet.DefaultDS4, DualSenseDevice.DetermineConnectionType),
+            new VidPidInfo(SONY_VID, 0x0DF2, "DualSense Edge", InputDeviceType.DualSense, VidPidFeatureSet.DefaultDS4, DualSenseDevice.DetermineConnectionType),
             new VidPidInfo(RAZER_VID, 0x1000, "Razer Raiju PS4"),
             new VidPidInfo(RAZER_VID, 0x1100, "Razer Raion Fightpad PS4", InputDeviceType.DS4, VidPidFeatureSet.NoGyroCalib),
             new VidPidInfo(NACON_VID, 0x0D01, "Nacon Revol Pro v.1", InputDeviceType.DS4, VidPidFeatureSet.NoGyroCalib), // Nacon Revolution Pro v1 and v2 doesn't support DS4 gyro calibration routines
@@ -149,6 +168,7 @@ namespace DS4Windows
             new VidPidInfo(NACON_VID, 0x0D10, "Nacon Revol Infinite"), // Nacon Revolution Infinite (sometimes known as Revol Unlimited Pro v2?). Touchpad, gyro, rumble, "led indicator" lightbar.
             new VidPidInfo(HORI_VID, 0x0084, "Hori Fighting Cmd"), // Hori Fighting Commander (special kind of gamepad without touchpad or sticks. There is a hardware switch to alter d-pad type between dpad and LS/RS)
             new VidPidInfo(NACON_VID, 0x0D13, "Nacon Revol Pro v.3"),
+            new VidPidInfo(HORI_VID, 0x0055, "Horipad 4 FPS", InputDeviceType.DS4, VidPidFeatureSet.NoGyroCalib), // Horipad 4 FPS (wired only.)
             new VidPidInfo(HORI_VID, 0x0066, "Horipad FPS Plus", InputDeviceType.DS4, VidPidFeatureSet.NoGyroCalib), // Horipad FPS Plus (wired only. No light bar, rumble and Gyro/Accel sensor. Cannot Hide "HID-compliant vendor-defined device" in USB Composite Device. Other feature works fine.)
             new VidPidInfo(0x9886, 0x0025, "Astro C40", InputDeviceType.DS4, VidPidFeatureSet.NoGyroCalib), // Astro C40 (wired and BT. Works if Astro specific xinput drivers haven't been installed. Uninstall those to use the pad as dinput device)
             new VidPidInfo(0x0E8F, 0x1114, "Gamo2 Divaller", InputDeviceType.DS4, VidPidFeatureSet.NoGyroCalib), // Gamo2 Divaller (wired only. Light bar not controllable. No touchpad, gyro or rumble)
@@ -158,29 +178,19 @@ namespace DS4Windows
             new VidPidInfo(NINTENDO_VENDOR_ID, SWITCH_PRO_PRODUCT_ID, "Switch Pro", InputDeviceType.SwitchPro, VidPidFeatureSet.DefaultDS4, checkConnection: SwitchProDevice.DetermineConnectionType),
             new VidPidInfo(NINTENDO_VENDOR_ID, JOYCON_L_PRODUCT_ID, "JoyCon (L)", InputDeviceType.JoyConL, VidPidFeatureSet.DefaultDS4, checkConnection: JoyConDevice.DetermineConnectionType),
             new VidPidInfo(NINTENDO_VENDOR_ID, JOYCON_R_PRODUCT_ID, "JoyCon (R)", InputDeviceType.JoyConR, VidPidFeatureSet.DefaultDS4, checkConnection: JoyConDevice.DetermineConnectionType),
+            new VidPidInfo(NINTENDO_VENDOR_ID, JOYCON_CHARGING_GRIP_PRODUCT_ID, "JoyCon (Grip)", InputDeviceType.JoyConGrip, VidPidFeatureSet.DefaultDS4, checkConnection: JoyConDevice.DetermineConnectionType),
             new VidPidInfo(0x7545, 0x1122, "Gioteck VX4", InputDeviceType.DS4), // Gioteck VX4 (no real lightbar, only some RGB leds)
             new VidPidInfo(0x7331, 0x0001, "DualShock 3 (DS4 Emulation)", InputDeviceType.DS4, VidPidFeatureSet.NoGyroCalib | VidPidFeatureSet.VendorDefinedDevice), // Sony DualShock 3 using DsHidMini driver. DsHidMini uses vendor-defined HID device type when it's emulating DS3 using DS4 button layout
             new VidPidInfo(0x20D6, 0x792A, "PowerA FUSION Wired Fightpad for PS4", InputDeviceType.DS4, VidPidFeatureSet.NoGyroCalib), // No lightbar, gyro, or sticks
             new VidPidInfo(0x044F, 0xD00E, "Thrustmaster eSwap Pro", InputDeviceType.DS4, VidPidFeatureSet.NoGyroCalib | VidPidFeatureSet.NoBatteryReading), // Thrustmaster eSwap Pro (wired only. No lightbar or gyro)
+            new VidPidInfo(0x054C, 0x0268, "DualShock 3 (SXS)", InputDeviceType.DS3, VidPidFeatureSet.DefaultDS4, checkConnection: DS3Device.DetermineConnectionType), // Sony DualShock 3 using DsHidMini driver (SXS) or Sony Sixaxis driver
+            new VidPidInfo(0x0C12, 0x0E15, "Playmax Wired Controller (PS4)", InputDeviceType.DS4, VidPidFeatureSet.NoBatteryReading | VidPidFeatureSet.NoGyroCalib), // Generic PS4 Controller by Playmax (brand primarily in New Zealand). Standard Wired PS4 controller, no Gyro, no Lightbar, no Battery. There is a newer model but I'm not sure if it uses a different Vid or Pid yet.
         };
 
         private static bool IsRealDS4(HidDevice hDevice)
         {
-            var device = PnPDevice.GetDeviceByInterfaceId(hDevice.DevicePath);
-
-            return !device.IsVirtual(pDevice =>
-            {
-                var hardwareIds = pDevice.GetProperty<string[]>(DevicePropertyKey.Device_HardwareIds).ToList();
-
-                // hardware IDs of root hubs/controllers that emit supported virtual devices as sources
-                var excludedIds = new[]
-                {
-                    @"ROOT\HIDGAMEMAP", // reWASD
-                    @"ROOT\VHUSB3HC", // VirtualHere
-                };
-
-                return hardwareIds.Any(id => excludedIds.Contains(id.ToUpper()));
-            });
+            bool result = !Global.CheckIfVirtualDevice(hDevice.DevicePath);
+            return result;
         }
 
         // Enumerates ds4 controllers in the system
@@ -225,8 +235,9 @@ namespace DS4Windows
                     VidPidInfo metainfo = knownDevices.Single(x => x.vid == hDevice.Attributes.VendorId &&
                         x.pid == hDevice.Attributes.ProductId);
 
-                    if (!metainfo.featureSet.HasFlag(VidPidFeatureSet.VendorDefinedDevice) && hDevice.Description == "HID-compliant vendor-defined device")
-                        continue; // ignore the Nacon Revolution Pro programming interface
+                    if (!metainfo.featureSet.HasFlag(VidPidFeatureSet.VendorDefinedDevice) &&
+                        hDevice.Capabilities.UsagePage >= 0xFF00)
+                        continue; // Ignore devices using Vendor-Defined HID Usage Pages (expected to ignore the Nacon Revolution Pro programming interface)
                     else if (DevicePaths.Contains(hDevice.DevicePath))
                         continue; // BT/USB endpoint already open once
 
@@ -245,8 +256,8 @@ namespace DS4Windows
                                 if (!elevated)
                                 {
                                     // Tell the client to launch routine to re-enable a device
-                                    RequestElevationArgs eleArgs = 
-                                        new RequestElevationArgs(PnPDevice.GetInstanceIdFromInterfaceId(hDevice.DevicePath));
+                                    RequestElevationArgs eleArgs =
+                                        new RequestElevationArgs(Global.GetInstanceIdFromDevicePath(hDevice.DevicePath));
                                     RequestElevation?.Invoke(eleArgs);
                                     if (eleArgs.StatusCode == RequestElevationArgs.STATUS_SUCCESS)
                                     {
@@ -255,7 +266,7 @@ namespace DS4Windows
                                 }
                                 else
                                 {
-                                    reEnableDevice(PnPDevice.GetInstanceIdFromInterfaceId(hDevice.DevicePath));
+                                    reEnableDevice(Global.GetInstanceIdFromDevicePath(hDevice.DevicePath));
                                     hDevice.OpenDevice(isExclusiveMode);
                                 }
                             }
@@ -276,9 +287,15 @@ namespace DS4Windows
                             serial = hDevice.ReadSerial(DualSenseDevice.SERIAL_FEATURE_ID);
                         }
                         else if (metainfo.inputDevType == InputDeviceType.DS4 &&
-                            metainfo.checkConnection(hDevice) == ConnectionType.SONYWA)
+                            metainfo.checkConnection(hDevice) == ConnectionType.SONYWA ||
+                            metainfo.inputDevType == InputDeviceType.DS3)
                         {
                             serial = hDevice.GenerateFakeHwSerial();
+                        }
+                        else if (metainfo.inputDevType == InputDeviceType.JoyConGrip)
+                        {
+                            // Blank serial will mean that a JoyCon is not docked to a side
+                            serial = JoyConDevice.ReadUSBSerial(hDevice);
                         }
                         else
                         {
@@ -316,7 +333,7 @@ namespace DS4Windows
                             }
                         }
 
-                        if (newdev)
+                        if (newdev && validSerial)
                         {
                             DS4Device ds4Device = InputDeviceFactory.CreateDevice(metainfo.inputDevType, hDevice, metainfo.name, metainfo.featureSet);
                             //DS4Device ds4Device = new DS4Device(hDevice, metainfo.name, metainfo.featureSet);
@@ -328,6 +345,7 @@ namespace DS4Windows
 
                             PrepareDS4Init?.Invoke(ds4Device);
                             ds4Device.PostInit();
+                            //Thread.Sleep(100);
                             PostDS4Init?.Invoke(ds4Device);
                             //ds4Device.Removal += On_Removal;
                             if (!ds4Device.ExitOutputThread)

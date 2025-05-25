@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -128,6 +146,24 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             }
         }
 
+        public void PrepareSaveMacro(OutBinding bind, bool shiftBind=false)
+        {
+            DS4ControlSettings setting = settings;
+
+            if (!shiftBind)
+            {
+                bind.outputType = OutBinding.OutType.Macro;
+                bind.macro = (int[])setting.action.actionMacro;
+                bind.macroType = settings.keyType;
+            }
+            else
+            {
+                bind.outputType = OutBinding.OutType.Macro;
+                bind.macro = (int[])setting.shiftAction.actionMacro;
+                bind.macroType = setting.shiftKeyType;
+            }
+        }
+
         public void WriteBinds()
         {
             currentOutBind.WriteBind(settings);
@@ -220,7 +256,11 @@ namespace DS4WinWPF.DS4Forms.ViewModels
 
         public bool HasScanCode { get => hasScanCode; set => hasScanCode = value; }
         public bool Toggle { get => toggle; set => toggle = value; }
-        public int ShiftTrigger { get => shiftTrigger; set => shiftTrigger = value; }
+        public int ShiftTrigger
+        {
+            get => shiftTrigger;
+            set => shiftTrigger = value;
+        }
         public int HeavyRumble { get => heavyRumble; set => heavyRumble = value; }
         public int LightRumble { get => lightRumble; set => lightRumble = value; }
         public int FlashRate

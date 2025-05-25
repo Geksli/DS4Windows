@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 
 namespace DS4Windows
 {
@@ -125,6 +143,25 @@ namespace DS4Windows
             double yMotion = deltaY != 0 ? (coefficient * verticalScale) * (deltaY * tempDouble)
                 + (normY * (offset * signY)) : 0;
 
+            if (tempInfo.jitterCompensation)
+            {
+                // Possibly expose threshold later
+                const double threshold = 0.26;
+                const float thresholdF = (float)threshold;
+
+                double absX = Math.Abs(xMotion);
+                if (absX <= normX * threshold)
+                {
+                    xMotion = signX * Math.Pow(absX / thresholdF, 1.408) * threshold;
+                }
+
+                double absY = Math.Abs(yMotion);
+                if (absY <= normY * threshold)
+                {
+                    yMotion = signY * Math.Pow(absY / thresholdF, 1.408) * threshold;
+                }
+            }
+
             int xAction = 0;
             if (xMotion != 0.0)
             {
@@ -181,8 +218,11 @@ namespace DS4Windows
             }
 
             hRemainder = vRemainder = 0.0;
-            double distSqu = (xMotion * xMotion) + (yMotion * yMotion);
 
+            xMotion = xMotion - (Mapping.remainderCutoff(xMotion * 100, 1.0) / 100);
+            yMotion = yMotion - (Mapping.remainderCutoff(yMotion * 100, 1.0) / 100);
+
+            double distSqu = (xMotion * xMotion) + (yMotion * yMotion);
             xAction = (int)xMotion;
             yAction = (int)yMotion;
 
@@ -394,6 +434,9 @@ namespace DS4Windows
             {
                 yMotion += verticalRemainder;
             }
+
+            xMotion = xMotion - (Mapping.remainderCutoff(xMotion * 100, 1.0) / 100);
+            yMotion = yMotion - (Mapping.remainderCutoff(yMotion * 100, 1.0) / 100);
 
             double distSqu = (xMotion * xMotion) + (yMotion * yMotion);
             int xAction = (int)xMotion;

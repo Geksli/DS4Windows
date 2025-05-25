@@ -1,4 +1,21 @@
-﻿using DS4Windows;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -8,6 +25,9 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Xml;
+using System.Xml.Serialization;
+using DS4Windows;
+using DS4WinWPF.DS4Control.DTOXml;
 
 namespace DS4WinWPF
 {
@@ -31,90 +51,69 @@ namespace DS4WinWPF
 
         private void Load()
         {
+            string configFile = Path.Combine(Global.appdatapath, "Auto Profiles.xml");
+            if (!File.Exists(configFile))
+                return;
+
+            XmlSerializer serializer = new XmlSerializer(typeof(AutoProfilesDTO));
+            using StreamReader sr = new StreamReader(configFile);
             try
             {
-                XmlDocument doc = new XmlDocument();
-
-                if (!File.Exists(DS4Windows.Global.appdatapath + "\\Auto Profiles.xml"))
-                    return;
-
-                doc.Load(DS4Windows.Global.appdatapath + "\\Auto Profiles.xml");
-                XmlNodeList programslist = doc.SelectNodes("Programs/Program");
-                foreach (XmlNode x in programslist)
-                {
-                    string path = x.Attributes["path"]?.Value ?? string.Empty;
-                    string title = x.Attributes["title"]?.Value ?? string.Empty;
-                    AutoProfileEntity autoprof = new AutoProfileEntity(path, title);
-
-                    XmlNode item;
-                    for (int i = 0; i < ControlService.CURRENT_DS4_CONTROLLER_LIMIT; i++)
-                    {
-                        item = x.SelectSingleNode($"Controller{i+1}");
-                        if (item != null)
-                        {
-                            autoprof.ProfileNames[i] = item.InnerText;
-                        }
-                    }
-
-                    item = x.SelectSingleNode($"TurnOff");
-                    if (item != null && bool.TryParse(item.InnerText, out bool turnoff))
-                    {
-                        autoprof.Turnoff = turnoff;
-                    }
-
-                    autoProfileColl.Add(autoprof);
-                    //autoProfileDict.Add(path, autoprof);
-                }
+                AutoProfilesDTO dto = serializer.Deserialize(sr) as AutoProfilesDTO;
+                dto.MapTo(this);
             }
-            catch (Exception) { }
+            catch (InvalidOperationException) {}
+            catch (XmlException) {}
         }
 
         public bool Save(string m_Profile)
         {
-            XmlDocument doc = new XmlDocument();
-            XmlNode Node;
             bool saved = true;
+
+            string output_path = m_Profile;
+            string testStr = string.Empty;
+            XmlSerializer serializer = new XmlSerializer(typeof(AutoProfilesDTO));
+            using (Utf8StringWriter strWriter = new Utf8StringWriter())
+            {
+                using XmlWriter xmlWriter = XmlWriter.Create(strWriter,
+                    new XmlWriterSettings()
+                    {
+                        Encoding = Encoding.UTF8,
+                        Indent = true,
+                    });
+
+                // Write header explicitly
+                //xmlWriter.WriteStartDocument();
+                xmlWriter.WriteComment(string.Format(" Auto-Profile Configuration Data. {0} ", DateTime.Now));
+                xmlWriter.WriteWhitespace("\r\n");
+                xmlWriter.WriteWhitespace("\r\n");
+
+                // Write root element and children
+                AutoProfilesDTO dto = new AutoProfilesDTO();
+                dto.MapFrom(this);
+                // Omit xmlns:xsi and xmlns:xsd from output
+                serializer.Serialize(xmlWriter, dto,
+                    new XmlSerializerNamespaces(new[] { XmlQualifiedName.Empty }));
+                xmlWriter.Flush();
+                xmlWriter.Close();
+
+                testStr = strWriter.ToString();
+                //Trace.WriteLine("TEST OUTPUT");
+                //Trace.WriteLine(testStr);
+            }
+
             try
             {
-                Node = doc.CreateXmlDeclaration("1.0", "utf-8", string.Empty);
-                doc.AppendChild(Node);
-
-                Node = doc.CreateComment(string.Format(" Auto-Profile Configuration Data. {0} ", DateTime.Now));
-                doc.AppendChild(Node);
-
-                Node = doc.CreateWhitespace("\r\n");
-                doc.AppendChild(Node);
-
-                Node = doc.CreateNode(XmlNodeType.Element, "Programs", "");
-                doc.AppendChild(Node);
-                foreach (AutoProfileEntity entity in autoProfileColl)
+                using (StreamWriter sw = new StreamWriter(output_path, false))
                 {
-                    XmlElement el = doc.CreateElement("Program");
-                    el.SetAttribute("path", entity.Path);
-                    if (!string.IsNullOrEmpty(entity.Title))
-                    {
-                        el.SetAttribute("title", entity.Title);
-                    }
-
-                    el.AppendChild(doc.CreateElement("Controller1")).InnerText = entity.ProfileNames[0];
-                    el.AppendChild(doc.CreateElement("Controller2")).InnerText = entity.ProfileNames[1];
-                    el.AppendChild(doc.CreateElement("Controller3")).InnerText = entity.ProfileNames[2];
-                    el.AppendChild(doc.CreateElement("Controller4")).InnerText = entity.ProfileNames[3];
-                    if (ControlService.USING_MAX_CONTROLLERS)
-                    {
-                        el.AppendChild(doc.CreateElement("Controller5")).InnerText = entity.ProfileNames[4];
-                        el.AppendChild(doc.CreateElement("Controller6")).InnerText = entity.ProfileNames[5];
-                        el.AppendChild(doc.CreateElement("Controller7")).InnerText = entity.ProfileNames[6];
-                        el.AppendChild(doc.CreateElement("Controller8")).InnerText = entity.ProfileNames[7];
-                    }
-                    el.AppendChild(doc.CreateElement("TurnOff")).InnerText = entity.Turnoff.ToString();
-
-                    Node.AppendChild(el);
+                    sw.Write(testStr);
                 }
-
-                doc.Save(m_Profile);
             }
-            catch (Exception) { saved = false; }
+            catch (UnauthorizedAccessException)
+            {
+                saved = false;
+            }
+
             return saved;
         }
 

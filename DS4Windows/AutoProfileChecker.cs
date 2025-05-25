@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -87,8 +105,28 @@ namespace DS4WinWPF
                                 if (autoProfileDebugLogLevel > 0)
                                     DS4Windows.AppLogger.LogToGui($"DEBUG: Auto-Profile. LoadProfile Controller {j + 1}={tempname}", false, true);
 
-                                Global.LoadTempProfile(j, tempname, true, Program.rootHub); // j is controller index, i is filename
-                                                                                            // if (LaunchProgram[j] != string.Empty) Process.Start(LaunchProgram[j]);
+                                if (Global.autoProfileSwitchNotifyChoice !=
+                                    AutoProfileDisplayProfileSwitchChoices.None)
+                                {
+                                    DisplayProfileChange(j, tempname);
+                                }
+
+                                DS4Device device = Program.rootHub.DS4Controllers[j];
+                                if (device != null)
+                                {
+                                    // Wait for controller to be in a wait period
+                                    int tempInd = j;
+                                    device.HaltReportingRunAction(() =>
+                                    {
+                                        Global.LoadTempProfile(tempInd, tempname, true, Program.rootHub); // j is controller index, i is filename
+                                                                                                            // if (LaunchProgram[j] != string.Empty) Process.Start(LaunchProgram[j]);
+                                    });
+                                }
+                                else
+                                {
+                                    Global.LoadTempProfile(j, tempname, true, Program.rootHub); // j is controller index, i is filename
+                                                                                                    // if (LaunchProgram[j] != string.Empty) Process.Start(LaunchProgram[j]);
+                                }
                             }
                             else
                             {
@@ -136,7 +174,26 @@ namespace DS4WinWPF
                                 if (autoProfileDebugLogLevel > 0)
                                     DS4Windows.AppLogger.LogToGui($"DEBUG: Auto-Profile. Unknown process. Reverting to default profile. Controller {j + 1}={Global.ProfilePath[j]} (default)", false, true);
 
-                                Global.LoadProfile(j, false, Program.rootHub);
+                                if (Global.autoProfileSwitchNotifyChoice !=
+                                    AutoProfileDisplayProfileSwitchChoices.None)
+                                {
+                                    DisplayProfileChange(j, "default");
+                                }
+
+                                DS4Device device = Program.rootHub.DS4Controllers[j];
+                                if (device != null)
+                                {
+                                    // Wait for controller to be in a wait period
+                                    int tempInd = j;
+                                    device.HaltReportingRunAction(() =>
+                                    {
+                                        Global.LoadProfile(tempInd, false, Program.rootHub);
+                                    });
+                                }
+                                else
+                                {
+                                    Global.LoadProfile(j, false, Program.rootHub);
+                                }
                             }
                             else
                             {
@@ -227,6 +284,37 @@ namespace DS4WinWPF
                     Thread.SpinWait(1000);
                 }
                 Thread.SpinWait(1000);
+            }
+        }
+
+        private void DisplayProfileChange(int ind, string profile)
+        {
+            switch (Global.autoProfileSwitchNotifyChoice)
+            {
+                case AutoProfileDisplayProfileSwitchChoices.Log:
+                    {
+                        string prolog = string.Format(DS4WinWPF.Properties.Resources.UsingAutoTempProfile, (ind + 1).ToString(), profile);
+                        DS4Windows.AppLogger.LogToGui(prolog, false);
+                    }
+
+                    break;
+                case AutoProfileDisplayProfileSwitchChoices.Notification:
+                    {
+                        string prolog = string.Format(DS4WinWPF.Properties.Resources.UsingAutoTempProfile, (ind + 1).ToString(), profile);
+                        DS4Windows.AppLogger.LogToTray(prolog);
+                    }
+
+                    break;
+                case AutoProfileDisplayProfileSwitchChoices.LogAndNotification:
+                    {
+                        string prolog = string.Format(DS4WinWPF.Properties.Resources.UsingAutoTempProfile, (ind + 1).ToString(), profile);
+                        DS4Windows.AppLogger.LogToGui(prolog, false);
+                        DS4Windows.AppLogger.LogToTray(prolog);
+                    }
+
+                    break;
+                default:
+                    break;
             }
         }
 

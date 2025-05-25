@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -147,7 +165,8 @@ namespace DS4Windows.InputDevices
         private const double STICK_AXIS_MIN_CUTOFF = 1.04;
 
         private const double STICK_AXIS_LS_X_MAX_CUTOFF = 0.96;
-        private const double STICK_AXIS_LS_X_MIN_CUTOFF = 1.48;
+        private const double STICK_AXIS_LS_X_MIN_CUTOFF = 1.04;
+        //private const double STICK_AXIS_LS_X_MIN_CUTOFF = 1.48;
         private const double STICK_AXIS_RS_X_MAX_CUTOFF = 0.96;
         private const double STICK_AXIS_RS_X_MIN_CUTOFF = 1.04;
 
@@ -183,9 +202,13 @@ namespace DS4Windows.InputDevices
         public double currentLeftAmpRatio;
         public double currentRightAmpRatio;
 
-        public const int INPUT_REPORT_LEN = 362;
-        public const int OUTPUT_REPORT_LEN = 49;
-        public const int RUMBLE_REPORT_LEN = 64;
+        public const int INPUT_REPORT_LEN_BT = 362;
+        public const int OUTPUT_REPORT_LEN_BT = 49;
+        public const int RUMBLE_REPORT_LEN_BT = 49;
+
+        public const int INPUT_REPORT_LEN_USB = 64;
+        public const int OUTPUT_REPORT_LEN_USB = 64;
+        public const int RUMBLE_REPORT_LEN_USB = 64;
 
         // Converts raw gyro input value to dps. Equal to (4588/65535)
         private const float GYRO_IN_DEG_SEC_FACTOR = 0.070f;
@@ -194,15 +217,20 @@ namespace DS4Windows.InputDevices
         private byte[] inputReportBuffer;
         private byte[] outputReportBuffer;
         private byte[] rumbleReportBuffer;
+        private int inputReportLen;
+        private int outputReportLen;
+        private int rumbleReportLen;
 
-        public int InputReportLen { get => INPUT_REPORT_LEN; }
-        public int OutputReportLen { get => OUTPUT_REPORT_LEN; }
-        public int RumbleReportLen { get => RUMBLE_REPORT_LEN; }
+        public int InputReportLen { get => inputReportLen; }
+        public int OutputReportLen { get => outputReportLen; }
+        public int RumbleReportLen { get => rumbleReportLen; }
 
+        private bool foundLeftStickCalib;
         private ushort[] leftStickCalib = new ushort[6];
         private ushort leftStickOffsetX = 0;
         private ushort leftStickOffsetY = 0;
 
+        private bool foundRightStickCalib;
         private ushort[] rightStickCalib = new ushort[6];
         private ushort rightStickOffsetX = 0;
         private ushort rightStickOffsetY = 0;
@@ -272,9 +300,11 @@ namespace DS4Windows.InputDevices
         private void JoyConDevice_Removal(object sender, EventArgs e)
         {
             connectionOpened = false;
+            DS4State tempState = getCurrentStateRef();
+            new DS4State().CopyTo(tempState);
         }
 
-        private JoyConSide DetermineSideType()
+        private JoyConSide DetermineBTSideType()
         {
             JoyConSide result = JoyConSide.None;
             int productId = hDevice.Attributes.ProductId;
@@ -292,36 +322,285 @@ namespace DS4Windows.InputDevices
 
         public override void PostInit()
         {
-            sideType = DetermineSideType();
-            if (sideType == JoyConSide.Left)
-            {
-                deviceType = InputDeviceType.JoyConL;
-            }
-            else if (sideType == JoyConSide.Right)
-            {
-                deviceType = InputDeviceType.JoyConR;
-            }
+            //sideType = DetermineSideType();
+            //if (sideType == JoyConSide.Left)
+            //{
+            //    deviceType = InputDeviceType.JoyConL;
+            //}
+            //else if (sideType == JoyConSide.Right)
+            //{
+            //    deviceType = InputDeviceType.JoyConR;
+            //}
 
-            conType = ConnectionType.BT;
+            conType = DetermineConnectionType(hDevice);
             warnInterval = WARN_INTERVAL_BT;
 
             gyroMouseSensSettings = new GyroMouseSens();
-            optionsStore = nativeOptionsStore = new JoyConControllerOptions(deviceType);
-            SetupOptionsEvents();
 
-            inputReportBuffer = new byte[INPUT_REPORT_LEN];
-            outputReportBuffer = new byte[OUTPUT_REPORT_LEN];
-            rumbleReportBuffer = new byte[RUMBLE_REPORT_LEN];
+            if (conType == ConnectionType.BT)
+            {
+                inputReportBuffer = new byte[INPUT_REPORT_LEN_BT];
+                outputReportBuffer = new byte[OUTPUT_REPORT_LEN_BT];
+                rumbleReportBuffer = new byte[RUMBLE_REPORT_LEN_BT];
+
+                inputReportLen = INPUT_REPORT_LEN_BT;
+                outputReportLen = OUTPUT_REPORT_LEN_BT;
+                rumbleReportLen = RUMBLE_REPORT_LEN_BT;
+            }
+            else if (conType == ConnectionType.USB)
+            {
+                inputReportBuffer = new byte[INPUT_REPORT_LEN_USB];
+                outputReportBuffer = new byte[OUTPUT_REPORT_LEN_USB];
+                rumbleReportBuffer = new byte[RUMBLE_REPORT_LEN_USB];
+
+                inputReportLen = INPUT_REPORT_LEN_USB;
+                outputReportLen = OUTPUT_REPORT_LEN_USB;
+                rumbleReportLen = RUMBLE_REPORT_LEN_USB;
+            }
 
             if (!hDevice.IsFileStreamOpen())
             {
                 hDevice.OpenFileStream(inputReportBuffer.Length);
             }
+
+            //NativeMethods.HidD_SetNumInputBuffers(hDevice.safeReadHandle.DangerousGetHandle(), 20);
+
+            //Thread.Sleep(500);
+
+            if (conType == ConnectionType.BT)
+            {
+                Mac = hDevice.ReadSerial(SERIAL_FEATURE_ID);
+
+                sideType = DetermineBTSideType();
+                if (sideType == JoyConSide.Left)
+                {
+                    deviceType = InputDeviceType.JoyConL;
+                }
+                else if (sideType == JoyConSide.Right)
+                {
+                    deviceType = InputDeviceType.JoyConR;
+                }
+            }
+            else if (conType == ConnectionType.USB)
+            {
+                // Run handshake sequence for JoyCon docked to Charging Grip.
+                // Routine will retrieve and set the Mac serial during the sequence
+                RunUSBSetup();
+            }
+
+            optionsStore = nativeOptionsStore = new JoyConControllerOptions(deviceType);
+            SetupOptionsEvents();
+        }
+
+        public static string ReadUSBSerial(HidDevice hDevice)
+        {
+            if (!hDevice.IsFileStreamOpen())
+            {
+                hDevice.OpenFileStream(INPUT_REPORT_LEN_USB);
+            }
+
+            string serial = DS4Device.BLANK_SERIAL;
+            byte[] data = new byte[64];
+            data[0] = 0x80; data[1] = 0x01;
+            //result = hidDevice.WriteAsyncOutputReportViaInterrupt(data);
+            bool result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+            hDevice.fileStream.Flush();
+            //Thread.Sleep(1000);
+
+            byte[] cmdBuffer = new byte[64];
+            HidDevice.ReadStatus res = hDevice.ReadWithFileStream(cmdBuffer, 100);
+            while (!(cmdBuffer[0] == 0x81 && cmdBuffer[1] == 0x01))
+            {
+                if (cmdBuffer[0] != 0x81)
+                {
+                    result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+                    hDevice.fileStream.Flush();
+                }
+
+                Array.Clear(cmdBuffer);
+                res = hDevice.ReadWithFileStream(cmdBuffer, 100);
+                //Trace.WriteLine($"{cmdBuffer[0]} | {cmdBuffer[3]}");
+            }
+
+            //Trace.WriteLine($"OUT {cmdBuffer[0]} | {cmdBuffer[3]}");
+            if (cmdBuffer[3] == 0x01)
+            {
+                serial = $"{cmdBuffer[9]:X2}:{cmdBuffer[8]:X2}:{cmdBuffer[7]:X2}:{cmdBuffer[6]:X2}:{cmdBuffer[5]:X2}:{cmdBuffer[4]:X2}";
+            }
+            else if (cmdBuffer[3] == 0x02)
+            {
+                serial = $"{cmdBuffer[9]:X2}:{cmdBuffer[8]:X2}:{cmdBuffer[7]:X2}:{cmdBuffer[6]:X2}:{cmdBuffer[5]:X2}:{cmdBuffer[4]:X2}";
+            }
+
+            return serial;
+        }
+
+        private void RunUSBSetup()
+        {
+            bool result;
+
+            // Set device to normal power state
+            //byte[] powerChoiceArray2 = new byte[] { 0x00 };
+            //Subcommand(SwitchProSubCmd.SET_LOW_POWER_STATE, powerChoiceArray2, 1, checkResponse: true);
+
+            //byte[] tmpReport = new byte[INPUT_REPORT_LEN];
+
+            //byte[] modeSwitchCommand = new byte[] { 0x3F };
+            //Subcommand(0x03, modeSwitchCommand, 1, checkResponse: true);
+            //Thread.Sleep(1000);
+
+            //{
+            //    byte[] ackCommand1 = new byte[1] { 0x00 };
+            //    Subcommand(0x33, ackCommand1, 1, true);
+            //}
+
+            byte[] data = new byte[64];
+            data[0] = 0x80; data[1] = 0x01;
+            //result = hidDevice.WriteAsyncOutputReportViaInterrupt(data);
+            result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+            hDevice.fileStream.Flush();
+            //Thread.Sleep(1000);
+
+            byte[] cmdBuffer = new byte[64];
+            HidDevice.ReadStatus res = hDevice.ReadWithFileStream(cmdBuffer, 100);
+            while (!(cmdBuffer[0] == 0x81 && cmdBuffer[1] == 0x01 && cmdBuffer[3] != 0x00))
+            {
+                if (cmdBuffer[0] != 0x81)
+                {
+                    result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+                    hDevice.fileStream.Flush();
+                }
+
+                Array.Clear(cmdBuffer);
+                res = hDevice.ReadWithFileStream(cmdBuffer, 100);
+                //Trace.WriteLine($"{cmdBuffer[0]} | {cmdBuffer[3]}");
+            }
+
+            //Trace.WriteLine($"OUT {cmdBuffer[0]} | {cmdBuffer[3]}");
+            if (cmdBuffer[3] == 0x01)
+            {
+                sideType = JoyConSide.Left;
+                deviceType = InputDeviceType.JoyConL;
+                displayName = "JoyCon (L)";
+                Mac = $"{cmdBuffer[9]:X2}:{cmdBuffer[8]:X2}:{cmdBuffer[7]:X2}:{cmdBuffer[6]:X2}:{cmdBuffer[5]:X2}:{cmdBuffer[4]:X2}";
+            }
+            else if (cmdBuffer[3] == 0x02)
+            {
+                sideType = JoyConSide.Right;
+                deviceType = InputDeviceType.JoyConR;
+                displayName = "JoyCon (R)";
+                Mac = $"{cmdBuffer[9]:X2}:{cmdBuffer[8]:X2}:{cmdBuffer[7]:X2}:{cmdBuffer[6]:X2}:{cmdBuffer[5]:X2}:{cmdBuffer[4]:X2}";
+            }
+
+            //{
+            //    byte[] ackCommand1 = new byte[1] { 0x00 };
+            //    Subcommand(0x33, ackCommand1, 1, true);
+            //}
+
+            //hDevice.fileStream.Flush();
+            //Thread.Sleep(1000);
+
+            //Array.Clear(tmpReport, 0 , 64);
+            //res = hidDevice.ReadWithFileStream(tmpReport);
+            //Console.WriteLine("TEST BYTE: {0}", tmpReport[2]);
+
+            data[0] = 0x80; data[1] = 0x02; // USB Pairing
+            //result = hidDevice.WriteOutputReportViaControl(data);
+            //Thread.Sleep(2000);
+            //Thread.Sleep(1000);
+            result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+            hDevice.fileStream.Flush();
+            //Thread.Sleep(1000);
+            WaitForReportResponse(0x81, 0x02, data, true);
+
+            /*data[0] = 0x80; data[1] = 0x03; // 3Mbit baud rate
+            //result = hidDevice.WriteAsyncOutputReportViaInterrupt(data);
+            result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+            //Thread.Sleep(1000);
+            hDevice.fileStream.Flush();
+            WaitForReportResponse(0x81, 0x03);
+            */
+
+            //Thread.Sleep(1000);
+            TestBaudChangeResponse();
+
+            data[0] = 0x80; data[1] = 0x02; // Handshake at new baud rate
+            result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+            //Thread.Sleep(1000);
+            //result = hidDevice.WriteOutputReportViaInterrupt(command, 500);
+            //Thread.Sleep(2000);
+            hDevice.fileStream.Flush();
+            //Thread.Sleep(1000);
+            WaitForReportResponse(0x81, 0x02, data, true);
+
+            data[0] = 0x80; data[1] = 0x4; // Prevent HID timeout
+            result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+            hDevice.fileStream.Flush();
+            //result = hidDevice.WriteOutputReportViaInterrupt(command, 500);
+            //WaitForReportResponse(0x81, 0x04, data);
+
+            //Thread.Sleep(1000);
+
+            //byte[] ackCommand = new byte[1] { 0x00 };
+            //Subcommand(0x33, ackCommand, 1, true);
+
+            EnableFastPollRate();
+            //EnableFastPollRate();
+        }
+
+        private void TestBaudChangeResponse()
+        {
+            byte[] data = new byte[64];
+            data[0] = 0x80; data[1] = 0x03; // 3Mbit baud rate
+            bool result = hDevice.WriteOutputReportViaInterrupt(data, 100);
+            hDevice.fileStream.Flush();
+
+            //return;
+
+            byte[] cmdBuffer = new byte[64];
+            HidDevice.ReadStatus res = hDevice.ReadWithFileStream(cmdBuffer, 100);
+            while (!(cmdBuffer[0] == 0x81 && cmdBuffer[1] == 0x03))
+            {
+                result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+                hDevice.fileStream.Flush();
+                //Thread.Sleep(20);
+
+                Array.Clear(cmdBuffer);
+                res = hDevice.ReadWithFileStream(cmdBuffer, 100);
+                //Trace.WriteLine($"{cmdBuffer[0]} | {cmdBuffer[1]}");
+            }
+
+            //Trace.WriteLine($"{cmdBuffer[0]} | {cmdBuffer[1]}");
+        }
+
+        private void WaitForReportResponse(byte reportId, byte command, byte[] commandBuf, bool repeatPacket = true)
+        {
+            byte[] cmdBuffer = new byte[64];
+            HidDevice.ReadStatus res = hDevice.ReadWithFileStream(cmdBuffer, 100);
+            while (!(cmdBuffer[0] == reportId && cmdBuffer[1] == command))
+            {
+                if (repeatPacket)
+                {
+                    bool result = hDevice.WriteOutputReportViaInterrupt(commandBuf, 100);
+                    hDevice.fileStream.Flush();
+                }
+
+                Array.Clear(cmdBuffer);
+                res = hDevice.ReadWithFileStream(cmdBuffer, 100);
+                //Trace.WriteLine($"{cmdBuffer[0]} | {cmdBuffer[1]}");
+            }
+
+            //Trace.WriteLine($"{cmdBuffer[0]} | {cmdBuffer[1]}");
         }
 
         public static ConnectionType DetermineConnectionType(HidDevice hDevice)
         {
             ConnectionType result = ConnectionType.BT;
+            if (hDevice.Capabilities.InputReportByteLength == 64)
+            {
+                result = ConnectionType.USB;
+            }
+
             return result;
         }
 
@@ -430,16 +709,34 @@ namespace DS4Windows.InputDevices
                             //Console.WriteLine("Got unexpected input report id 0x{0:X2}. Try again",
                             //    inputReportBuffer[0]);
 
-                            readWaitEv.Reset();
-                            inputReportErrorCount++;
-                            if (inputReportErrorCount > 10)
+                            if (conType == ConnectionType.BT)
                             {
-                                exitInputThread = true;
-                                isDisconnecting = true;
-                                Removal?.Invoke(this, EventArgs.Empty);
-                            }
+                                readWaitEv.Reset();
+                                inputReportErrorCount++;
+                                if (inputReportErrorCount > 10)
+                                {
+                                    exitInputThread = true;
+                                    isDisconnecting = true;
+                                    Removal?.Invoke(this, EventArgs.Empty);
+                                }
 
-                            continue;
+                                continue;
+                            }
+                            else if (conType == ConnectionType.USB)
+                            {
+                                if (inputReportBuffer[0] == 0x81 &&
+                                    inputReportBuffer[1] == 0x01 &&
+                                    inputReportBuffer[2] == 0x03)
+                                {
+                                    // 0x03 in byte 2 seems to be a Disconnect status
+                                    readWaitEv.Reset();
+                                    exitInputThread = true;
+                                    isDisconnecting = true;
+                                    Removal?.Invoke(this, EventArgs.Empty);
+                                }
+
+                                continue;
+                            }
                         }
                     }
                     else
@@ -554,10 +851,36 @@ namespace DS4Windows.InputDevices
                         stick_raw[2] = inputReportBuffer[8];
 
                         tempAxisX = (stick_raw[0] | ((stick_raw[1] & 0x0F) << 8)) - leftStickOffsetX;
+                        tempAxisY = ((stick_raw[1] >> 4) | (stick_raw[2] << 4)) - leftStickOffsetY;
+
+                        if (firstReport && !foundLeftStickCalib)
+                        {
+                            if (tempAxisX > leftStickXData.mid)
+                            {
+                                uint diff = (uint)(tempAxisX - leftStickXData.mid);
+                                leftStickXData.min = (ushort)(leftStickXData.min + diff);
+                            }
+                            else if (tempAxisX < leftStickXData.mid)
+                            {
+                                uint diff = (uint)(leftStickXData.mid - tempAxisX);
+                                leftStickXData.max = (ushort)(leftStickXData.max - diff);
+                            }
+
+                            if (tempAxisY > leftStickYData.mid)
+                            {
+                                uint diff = (uint)(tempAxisY - leftStickYData.mid);
+                                leftStickYData.min = (ushort)(leftStickYData.min + diff);
+                            }
+                            else if (tempAxisY < leftStickYData.mid)
+                            {
+                                uint diff = (uint)(leftStickYData.mid - tempAxisY);
+                                leftStickYData.max = (ushort)(leftStickYData.max - diff);
+                            }
+                        }
+
                         tempAxisX = tempAxisX > leftStickXData.max ? leftStickXData.max : (tempAxisX < leftStickXData.min ? leftStickXData.min : tempAxisX);
                         cState.LX = (byte)((tempAxisX - leftStickXData.min) / (double)(leftStickXData.max - leftStickXData.min) * 255);
 
-                        tempAxisY = ((stick_raw[1] >> 4) | (stick_raw[2] << 4)) - leftStickOffsetY;
                         tempAxisY = tempAxisY > leftStickYData.max ? leftStickYData.max : (tempAxisY < leftStickYData.min ? leftStickYData.min : tempAxisY);
                         cState.LY = (byte)((((tempAxisY - leftStickYData.min) / (double)(leftStickYData.max - leftStickYData.min) - 0.5) * -1.0 + 0.5) * 255);
 
@@ -589,10 +912,36 @@ namespace DS4Windows.InputDevices
                         stick_raw2[2] = inputReportBuffer[11];
 
                         tempAxisX = (stick_raw2[0] | ((stick_raw2[1] & 0x0F) << 8)) - rightStickOffsetX;
+                        tempAxisY = ((stick_raw2[1] >> 4) | (stick_raw2[2] << 4)) - rightStickOffsetY;
+
+                        if (firstReport && !foundRightStickCalib)
+                        {
+                            if (tempAxisX > rightStickXData.mid)
+                            {
+                                uint diff = (uint)(tempAxisX - rightStickXData.mid);
+                                rightStickXData.min = (ushort)(rightStickXData.min + diff);
+                            }
+                            else if (tempAxisX < rightStickXData.mid)
+                            {
+                                uint diff = (uint)(rightStickXData.mid - tempAxisX);
+                                rightStickXData.max = (ushort)(rightStickXData.max - diff);
+                            }
+
+                            if (tempAxisY > rightStickYData.mid)
+                            {
+                                uint diff = (uint)(tempAxisY - rightStickYData.mid);
+                                rightStickYData.min = (ushort)(rightStickYData.min + diff);
+                            }
+                            else if (tempAxisY < rightStickYData.mid)
+                            {
+                                uint diff = (uint)(rightStickYData.mid - tempAxisY);
+                                rightStickYData.max = (ushort)(rightStickYData.max - diff);
+                            }
+                        }
+
                         tempAxisX = tempAxisX > rightStickXData.max ? rightStickXData.max : (tempAxisX < rightStickXData.min ? rightStickXData.min : tempAxisX);
                         cState.RX = (byte)((tempAxisX - rightStickXData.min) / (double)(rightStickXData.max - rightStickXData.min) * 255);
 
-                        tempAxisY = ((stick_raw2[1] >> 4) | (stick_raw2[2] << 4)) - rightStickOffsetY;
                         tempAxisY = tempAxisY > rightStickYData.max ? rightStickYData.max : (tempAxisY < rightStickYData.min ? rightStickYData.min : tempAxisY);
                         cState.RY = (byte)((((tempAxisY - rightStickYData.min) / (double)(rightStickYData.max - rightStickYData.min) - 0.5) * -1.0 + 0.5) * 255);
 
@@ -733,7 +1082,11 @@ namespace DS4Windows.InputDevices
                         }
                     }
 
-                    Report?.Invoke(this, EventArgs.Empty);
+                    if (fireReport)
+                    {
+                        Report?.Invoke(this, EventArgs.Empty);
+                    }
+
                     WriteReport();
 
                     //forceWrite = false;
@@ -766,10 +1119,52 @@ namespace DS4Windows.InputDevices
 
         private void SetOperational()
         {
-            // Set device to normal power state
+            //RunUSBSetup();
+
+            byte[] data = new byte[64];
+            //data[0] = 0x80; data[1] = 0x01;
+            ////result = hidDevice.WriteAsyncOutputReportViaInterrupt(data);
+            //bool result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+            //hDevice.fileStream.Flush();
+
+            //byte[] cmdBuffer = new byte[64];
+            //HidDevice.ReadStatus res = hDevice.ReadWithFileStream(cmdBuffer, 0);
+            //while (cmdBuffer[0] != 0x81)
+            //{
+            //    res = hDevice.ReadWithFileStream(cmdBuffer, 0);
+            //}
+
+            //if (cmdBuffer[3] == 0x01)
+            //{
+            //    sideType = JoyConSide.Left;
+            //    deviceType = InputDeviceType.JoyConL;
+            //}
+            //else if (cmdBuffer[3] == 0x02)
+            //{
+            //    sideType = JoyConSide.Right;
+            //    deviceType = InputDeviceType.JoyConR;
+            //}
+
+            //byte[] data = new byte[64];
+            //data[0] = 0x80; data[1] = 0x01;
+            //result = hidDevice.WriteAsyncOutputReportViaInterrupt(data);
+            //bool result = hDevice.WriteOutputReportViaInterrupt(data, 0);
+            //hDevice.fileStream.Flush();
+
+            //byte[] tmpBuffer = new byte[64];
+            //HidDevice.ReadStatus res = hDevice.ReadWithFileStream(tmpBuffer);
+            //while (tmpBuffer[0] != 0x81)
+            //{
+            //    res = hDevice.ReadWithFileStream(tmpBuffer);
+            //}
+
+            // Revert back to low power state
             byte[] powerChoiceArray = new byte[] { 0x00 };
             Subcommand(SwitchProSubCmd.SET_LOW_POWER_STATE, powerChoiceArray, 1, checkResponse: true);
 
+            //Thread.Sleep(400);
+
+            //Trace.WriteLine($"{sideType}");
             if (sideType == JoyConSide.Right && enableHomeLED)
             {
                 // Turn on Home light (Solid)
@@ -811,9 +1206,15 @@ namespace DS4Windows.InputDevices
             }
 
             //Thread.Sleep(1000);
-            EnableFastPollRate();
+
+            if (conType == ConnectionType.BT)
+            {
+                // Routine runs earlier for a JoyCon docked to the Charging Grip
+                EnableFastPollRate();
+            }
+
             SetInitRumble();
-            Thread.Sleep(500);
+            //Thread.Sleep(500);
             CalibrationData();
 
             Console.WriteLine("FINISHED");
@@ -851,7 +1252,7 @@ namespace DS4Windows.InputDevices
                 rumble_data[4 + i] = rumble_data[i];
             }
 
-            byte[] tmpRumble = new byte[RUMBLE_REPORT_LEN];
+            byte[] tmpRumble = new byte[rumbleReportLen];
             Array.Copy(rumble_data, 0, tmpRumble, 2, rumble_data.Length);
             tmpRumble[0] = 0x10;
             tmpRumble[1] = frameCount;
@@ -882,7 +1283,7 @@ namespace DS4Windows.InputDevices
             byte[] tmpReport = null;
             if (result && checkResponse)
             {
-                tmpReport = new byte[INPUT_REPORT_LEN];
+                tmpReport = new byte[inputReportLen];
                 HidDevice.ReadStatus res;
                 res = hDevice.ReadWithFileStream(tmpReport, SUBCOMMAND_RESPONSE_TIMEOUT);
                 int tries = 1;
@@ -1017,6 +1418,7 @@ namespace DS4Windows.InputDevices
                 if (tmpBuffer[SPI_RESP_OFFSET] == 0xB2 && tmpBuffer[SPI_RESP_OFFSET + 1] == 0xA1)
                 {
                     foundUserCalib = true;
+                    foundLeftStickCalib = true;
                 }
 
                 if (foundUserCalib)
@@ -1087,6 +1489,7 @@ namespace DS4Windows.InputDevices
                 if (tmpBuffer[SPI_RESP_OFFSET] == 0xB2 && tmpBuffer[SPI_RESP_OFFSET + 1] == 0xA1)
                 {
                     foundUserCalib = true;
+                    foundRightStickCalib = true;
                 }
 
                 if (foundUserCalib)
@@ -1111,13 +1514,13 @@ namespace DS4Windows.InputDevices
 
                 if (foundUserCalib)
                 {
-                    rightStickXData.max = (ushort)(rightStickCalib[2] + rightStickCalib[4]);
+                    rightStickXData.max = (ushort)(rightStickCalib[2] + rightStickCalib[0]);
                     rightStickXData.mid = rightStickCalib[2];
-                    rightStickXData.min = (ushort)(rightStickCalib[2] - rightStickCalib[0]);
+                    rightStickXData.min = (ushort)(rightStickCalib[2] - rightStickCalib[4]);
 
-                    rightStickYData.max = (ushort)(rightStickCalib[3] + rightStickCalib[5]);
+                    rightStickYData.max = (ushort)(rightStickCalib[3] + rightStickCalib[1]);
                     rightStickYData.mid = rightStickCalib[3];
-                    rightStickYData.min = (ushort)(rightStickCalib[3] - rightStickCalib[1]);
+                    rightStickYData.min = (ushort)(rightStickCalib[3] - rightStickCalib[5]);
                 }
                 else
                 {
@@ -1468,6 +1871,13 @@ namespace DS4Windows.InputDevices
                         dState.SideL = cState.SideL;
                         dState.SideR = cState.SideR;
                     }
+                    else
+                    {
+                        // Allow secondary SideL and SideR to serve a separate function.
+                        // Using DualSense FnL and FnR codes for the button mapping
+                        dState.FnL = cState.SideL;
+                        dState.FnR = cState.SideR;
+                    }
 
                     if (outputMapGyro) dState.Motion = cState.Motion;
                     //dState.Motion = cState.Motion;
@@ -1494,6 +1904,13 @@ namespace DS4Windows.InputDevices
                         dState.ReportTimeStamp = cState.ReportTimeStamp;
                         dState.SideL = cState.SideL;
                         dState.SideR = cState.SideR;
+                    }
+                    else
+                    {
+                        // Allow secondary SideL and SideR to serve a separate function.
+                        // Using DualSense FnL and FnR codes for the button mapping
+                        dState.FnL = cState.SideL;
+                        dState.FnR = cState.SideR;
                     }
 
                     if (outputMapGyro) dState.Motion = cState.Motion;

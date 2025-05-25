@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -18,6 +36,20 @@ namespace DS4WinWPF.DS4Forms.ViewModels
 {
     public class ProfileSettingsViewModel
     {
+        private List<string> gyroTriggerItems = new List<string>()
+        {
+            "Cross", "Circle", "Square", "Triangle",
+            "L1", "L2", "R1", "R2",
+            "Up", "Down", "Left", "Right",
+            "L3", "R3", "Finger on Touchpad", "2 Fingers on Touchpad",
+            "Options", "Share", "PS", "Touchpad Click",
+            "Mute", "Side L", "Side R",
+            // START Extra buttons for DualSense Edge controller
+            "Function Left", "Function Right", "Bottom Left Paddle", "Bottom Right Paddle",
+            // END Extra buttons for DualSense Edge controller
+            "Always On",
+        };
+
         private int device;
         public int Device { get => device; }
 
@@ -647,6 +679,44 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             }
         }
         public EventHandler DInputOnlyChanged;
+
+        public bool VirtualTriggerButtons
+        {
+            get => Global.OutputVirtualTriggerButton[device];
+            set
+            {
+                bool temp = Global.OutputVirtualTriggerButton[device];
+                if (temp == value) return;
+
+                Global.OutputVirtualTriggerButton[device] = value;
+                VirtualTriggerButtonsChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        public event EventHandler VirtualTriggerButtonsChanged;
+
+        private List<EnumChoiceSelection<DS4TriggerOutputMode>> outputDS4TriggerModeOptions =
+            new List<EnumChoiceSelection<DS4TriggerOutputMode>>
+            {
+                new EnumChoiceSelection<DS4TriggerOutputMode>(Translations.Strings.DS4OutputTriggersDefault, DS4TriggerOutputMode.Default),
+                new EnumChoiceSelection<DS4TriggerOutputMode>(Translations.Strings.Analog, DS4TriggerOutputMode.Analog),
+                new EnumChoiceSelection<DS4TriggerOutputMode>(Translations.Strings.Buttons, DS4TriggerOutputMode.Buttons),
+            };
+
+        public List<EnumChoiceSelection<DS4TriggerOutputMode>> OutputDS4TriggerModeOptions => outputDS4TriggerModeOptions;
+
+        public DS4TriggerOutputMode OutputDS4TriggerMode
+        {
+            get => Global.OutputDS4TriggerMode[device];
+            set
+            {
+                DS4TriggerOutputMode temp = Global.OutputDS4TriggerMode[device];
+                if (temp == value) return;
+
+                Global.OutputDS4TriggerMode[device] = value;
+                OutputDS4TriggerModeChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        public event EventHandler OutputDS4TriggerModeChanged;
 
         public bool IdleDisconnectExists
         {
@@ -2489,6 +2559,12 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             }
         }
 
+        public bool GyroMouseJitterCompensation
+        {
+            get => Global.GyroMouseInfo[device].jitterCompensation;
+            set => Global.GyroMouseInfo[device].jitterCompensation = value;
+        }
+
         public bool GyroMouseStickTurns
         {
             get => Global.GyroMouseStickTriggerTurns[device];
@@ -2620,6 +2696,12 @@ namespace DS4WinWPF.DS4Forms.ViewModels
                     Global.GyroMouseStickInf[device].inverted = (uint)(temp & ~2);
                 }
             }
+        }
+
+        public bool GyroMouseStickJitterCompensation
+        {
+            get => Global.GyroMouseStickInf[device].jitterCompensation;
+            set => Global.GyroMouseStickInf[device].jitterCompensation = value;
         }
 
         public bool GyroMouseStickSmooth
@@ -2807,6 +2889,11 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             set => Global.UseGenericRumbleStrRescaleForDualSenses[device] = value;
         }
 
+        public bool UsingMinViGEm173333
+        {
+            get => Global.IsUsingMinViGEm117333();
+        }
+
         public ProfileSettingsViewModel(int device)
         {
             this.device = device;
@@ -2837,6 +2924,21 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             gyroMouseStickSmoothMethodIndex = FindGyroMouseStickSmoothMethodIndex();
 
             SetupEvents();
+        }
+
+        public void CreateGyroTriggerMenuItems(ContextMenu menu, RoutedEventHandler itemClickHandler)
+        {
+            foreach (string btnName in gyroTriggerItems)
+            {
+                MenuItem item = new MenuItem()
+                {
+                    Header = btnName,
+                    IsCheckable = true,
+                };
+
+                item.Click += itemClickHandler;
+                menu.Items.Add(item);
+            }
         }
 
         private int FindGyroMouseSmoothMethodIndex()

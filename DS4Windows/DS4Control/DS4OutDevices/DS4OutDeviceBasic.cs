@@ -1,4 +1,22 @@
-﻿using Nefarius.ViGEm.Client;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using Nefarius.ViGEm.Client;
 using Nefarius.ViGEm.Client.Targets.DualShock4;
 using System;
 using System.Collections.Generic;
@@ -46,10 +64,10 @@ namespace DS4Windows
 
                 if (state.L1) tempButtons |= DualShock4Button.ShoulderLeft.Value;
                 if (state.R1) tempButtons |= DualShock4Button.ShoulderRight.Value;
-                //if (state.L2Btn) tempButtons |= DualShock4Buttons.TriggerLeft;
-                //if (state.R2Btn) tempButtons |= DualShock4Buttons.TriggerRight;
-                if (state.L2 > 0) tempButtons |= DualShock4Button.TriggerLeft.Value;
-                if (state.R2 > 0) tempButtons |= DualShock4Button.TriggerRight.Value;
+                if (state.L2Btn) tempButtons |= DualShock4Button.TriggerLeft.Value;
+                if (state.R2Btn) tempButtons |= DualShock4Button.TriggerRight.Value;
+                //if (state.L2 > 0) tempButtons |= DualShock4Button.TriggerLeft.Value;
+                //if (state.R2 > 0) tempButtons |= DualShock4Button.TriggerRight.Value;
 
                 if (state.Triangle) tempButtons |= DualShock4Button.Triangle.Value;
                 if (state.Circle) tempButtons |= DualShock4Button.Circle.Value;

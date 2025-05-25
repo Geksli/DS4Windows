@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -58,7 +76,7 @@ namespace DS4Windows
             int slotNum, OutSlotDevice outSlotDev);
         public event SlotUnassignedDelegate SlotUnassigned;
 
-        public event EventHandler ViGEmFailure;
+        public event EventHandler<int> ViGEmFailure;
 
         // First ViGEmBus version that has usable XInput slot grabbing
         private static Version xinputSlotMinVersion = new Version("1.17.333.0");
@@ -138,7 +156,8 @@ namespace DS4Windows
         public void DeferredPlugin(OutputDevice outputDevice, int inIdx, string inDisplayString,
             OutputDevice[] outdevs, OutContType contType)
         {
-            queueLocker.EnterWriteLock();
+            // releases ReaderWriterLockSlim when locker goes out of scope
+            using WriteLocker locker = new WriteLocker(queueLocker);
             //queuedTasks++;
             //Action tempAction = new Action(() =>
             {
@@ -149,11 +168,11 @@ namespace DS4Windows
                     {
                         outputDevice.Connect();
                     }
-                    catch (Win32Exception)
+                    catch (Win32Exception e)
                     {
                         // Leave task immediately if connect call failed
                         //queuedTasks--;
-                        ViGEmFailure?.Invoke(this, EventArgs.Empty);
+                        ViGEmFailure?.Invoke(this, e.ErrorCode);
                         return;
                     }
 
@@ -181,7 +200,6 @@ namespace DS4Windows
             };
 
             //queuedTasks--;
-            queueLocker.ExitWriteLock();
         }
 
         public void DeferredRemoval(OutputDevice outputDevice, int inIdx,
@@ -189,7 +207,8 @@ namespace DS4Windows
         {
             _ = immediate;
 
-            queueLocker.EnterWriteLock();
+            // releases ReaderWriterLockSlim when locker goes out of scope
+            using WriteLocker locker = new WriteLocker(queueLocker);
             //queuedTasks++;
 
             {
@@ -220,7 +239,6 @@ namespace DS4Windows
             };
 
             //queuedTasks--;
-            queueLocker.ExitWriteLock();
         }
 
         public OutSlotDevice FindOpenSlot()
@@ -301,7 +319,8 @@ namespace DS4Windows
         {
             _ = immediate;
 
-            queueLocker.EnterWriteLock();
+            // releases ReaderWriterLockSlim when locker goes out of scope
+            using WriteLocker locker = new WriteLocker(queueLocker);
             //queuedTasks++;
             {
                 int slotIdx = 0;
@@ -325,7 +344,6 @@ namespace DS4Windows
             };
 
             //queuedTasks--;
-            queueLocker.ExitWriteLock();
         }
     }
 }

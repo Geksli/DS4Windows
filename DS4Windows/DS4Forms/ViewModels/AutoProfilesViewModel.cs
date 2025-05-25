@@ -1,4 +1,23 @@
-﻿using DS4Windows;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using DS4Windows;
+using DS4WinWPF.DS4Forms.ViewModels.Util;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -60,6 +79,23 @@ namespace DS4WinWPF.DS4Forms.ViewModels
         public bool UsingExpandedControllers
         {
             get => ControlService.USING_MAX_CONTROLLERS;
+        }
+
+        private List<EnumChoiceSelection<AutoProfileDisplayProfileSwitchChoices>> displayProfileSwitchList =
+            new List<EnumChoiceSelection<AutoProfileDisplayProfileSwitchChoices>>()
+            {
+                new EnumChoiceSelection<AutoProfileDisplayProfileSwitchChoices>(Translations.Strings.None, AutoProfileDisplayProfileSwitchChoices.None),
+                new EnumChoiceSelection<AutoProfileDisplayProfileSwitchChoices>(Translations.Strings.Log, AutoProfileDisplayProfileSwitchChoices.Log),
+                new EnumChoiceSelection<AutoProfileDisplayProfileSwitchChoices>(Translations.Strings.Notification, AutoProfileDisplayProfileSwitchChoices.Notification),
+                new EnumChoiceSelection<AutoProfileDisplayProfileSwitchChoices>(Translations.Strings.AutoProfiles_LogAndNotification, AutoProfileDisplayProfileSwitchChoices.LogAndNotification),
+            };
+
+        public List<EnumChoiceSelection<AutoProfileDisplayProfileSwitchChoices>> DisplayProfileSwitchList => displayProfileSwitchList;
+
+        public AutoProfileDisplayProfileSwitchChoices ProfileSwitchChoice
+        {
+            get => Global.autoProfileSwitchNotifyChoice;
+            set => Global.autoProfileSwitchNotifyChoice = value;
         }
 
         public AutoProfilesViewModel(AutoProfileHolder autoProfileHolder, ProfileList profileList)

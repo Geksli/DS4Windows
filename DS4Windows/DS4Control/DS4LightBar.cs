@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Drawing;
 using static System.Math;
 using static DS4Windows.Global;
@@ -57,14 +75,7 @@ namespace DS4Windows
             {
                 if (lightModeInfo.useCustomLed)
                 {
-                    if (lightModeInfo.ledAsBattery)
-                    {
-                        ref DS4Color fullColor = ref lightModeInfo.m_CustomLed; // ref getCustomColor(deviceNum);
-                        ref DS4Color lowColor = ref lightModeInfo.m_LowLed; //ref getLowColor(deviceNum);
-                        color = getTransitionedColor(ref lowColor, ref fullColor, device.getBattery());
-                    }
-                    else
-                        color = lightModeInfo.m_CustomLed; //getCustomColor(deviceNum);
+                    color = lightModeInfo.m_CustomLed; //getCustomColor(deviceNum);
                 }
                 else
                 {
@@ -75,11 +86,14 @@ namespace DS4Windows
                         DateTime now = DateTime.UtcNow;
                         if (now >= oldnow[deviceNum] + TimeSpan.FromMilliseconds(10)) //update by the millisecond that way it's a smooth transtion
                         {
+                            int diffMs = now.Subtract(oldnow[deviceNum]).Milliseconds;
                             oldnow[deviceNum] = now;
                             if (device.isCharging())
-                                counters[deviceNum] -= 1.5 * 3 / rainbow;
+                                //counters[deviceNum] -= 1.5 * 3 / rainbow;
+                                counters[deviceNum] -= 360.0 * (diffMs / 1000.0 / rainbow);
                             else
-                                counters[deviceNum] += 1.5 * 3 / rainbow;
+                                //counters[deviceNum] += 1.5 * 3 / rainbow;
+                                counters[deviceNum] += 360.0 * (diffMs / 1000.0 / rainbow);
                         }
 
                         if (counters[deviceNum] < 0)

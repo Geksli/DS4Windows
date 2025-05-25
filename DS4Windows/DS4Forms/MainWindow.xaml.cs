@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+DS4Windows
+Copyright (C) 2023  Travis Nickles
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -21,6 +39,7 @@ using HttpProgress;
 
 using DS4WinWPF.DS4Forms.ViewModels;
 using DS4Windows;
+using DS4WinWPF.DS4Control;
 using DS4WinWPF.Translations;
 using H.NotifyIcon.Core;
 
@@ -57,8 +76,11 @@ namespace DS4WinWPF.DS4Forms
         private bool preserveSize = true;
         private Size oldSize;
         private bool contextclose;
+        private bool startMinimized;
 
         public ProfileList ProfileListHolder { get => profileListHolder; }
+
+        public bool IsInitialShow { get; set; }
 
         public MainWindow(ArgumentParser parser)
         {
@@ -119,10 +141,7 @@ namespace DS4WinWPF.DS4Forms
                 }
             }
 
-            if (Global.StartMinimized || parser.Mini)
-            {
-                WindowState = WindowState.Minimized;
-            }
+            startMinimized = Global.StartMinimized || parser.Mini;
 
             bool isElevated = Global.IsAdministrator();
             if (isElevated)
@@ -130,20 +149,6 @@ namespace DS4WinWPF.DS4Forms
                 uacImg.Visibility = Visibility.Collapsed;
             }
 
-            // Check display width bounds on startup
-            this.Width = Global.FormWidth = (int)Math.Clamp(Global.FormWidth, 0, Global.fullDesktopBounds.Width);
-            this.Height = Global.FormHeight = (int)Math.Clamp(Global.FormHeight, 0, Global.fullDesktopBounds.Height);
-            // Keep possible example that does not rely on WpfScreenHelper
-            //this.Width = Math.Clamp(Global.FormWidth, 0, SystemParameters.VirtualScreenWidth);
-            //this.Height = Math.Clamp(Global.FormHeight, 0, SystemParameters.VirtualScreenHeight);
-
-            // Check if requested window location exists on startup
-            WindowStartupLocation = WindowStartupLocation.Manual;
-            Left = Global.FormLocationX = (int)Math.Clamp(Global.FormLocationX, 0, Global.fullDesktopBounds.Right);
-            Top = Global.FormLocationY = (int)Math.Clamp(Global.FormLocationY, 0, Global.fullDesktopBounds.Bottom);
-            // Keep possible example that does not rely on WpfScreenHelper
-            //Left = Math.Clamp(Global.FormLocationX, 0, SystemParameters.VirtualScreenLeft);
-            //Top = Math.Clamp(Global.FormLocationY, 0, SystemParameters.VirtualScreenHeight);
             noContLb.Content = string.Format(Strings.NoControllersConnected,
                 ControlService.CURRENT_DS4_CONTROLLER_LIMIT);
 
@@ -205,6 +210,13 @@ namespace DS4WinWPF.DS4Forms
 
                     Global.LastChecked = DateTime.Now;
                 }
+
+                // Check if main window closing was requested from app update.
+                // Quit task early
+                //if (contextclose)
+                //{
+                //    return;
+                //}
             });
             Util.LogAssistBackgroundTask(tempTask);
         }
@@ -250,9 +262,10 @@ namespace DS4WinWPF.DS4Forms
 
                     if (launch)
                     {
+                        // Set that the window is getting ready to close for other components
+                        contextclose = true;
                         Dispatcher.BeginInvoke((Action)(() =>
                         {
-                            contextclose = true;
                             Close();
                         }));
                     }
@@ -310,9 +323,19 @@ namespace DS4WinWPF.DS4Forms
                 if (!IsActive && (Global.Notifications == 2 ||
                     (Global.Notifications == 1 && e.Warning)))
                 {
-                    notifyIcon.ShowNotification(TrayIconViewModel.ballonTitle,
-                        e.Data, !e.Warning ? H.NotifyIcon.Core.NotificationIcon.Info :
-                        H.NotifyIcon.Core.NotificationIcon.Warning);
+                    if (notifyIcon.IsCreated)
+                    {
+                        try
+                        {
+                            notifyIcon.ShowNotification(TrayIconViewModel.ballonTitle,
+                            e.Data, !e.Warning ? H.NotifyIcon.Core.NotificationIcon.Info :
+                            H.NotifyIcon.Core.NotificationIcon.Warning);
+                        }
+                        catch (System.InvalidOperationException)
+                        {
+                            // Ignore
+                        }
+                    }
                 }
             }));
         }
@@ -365,6 +388,7 @@ namespace DS4WinWPF.DS4Forms
                     managementEvWatcher.Start();
                 }
                 catch (ManagementException) { wmiConnected = false; }
+                catch (COMException) { wmiConnected = false; }
             }
 
             if (!wmiConnected)
@@ -470,13 +494,25 @@ Suspend support not enabled.", true);
                         if (wasrunning)
                         {
                             wasrunning = false;
-                            //Thread.Sleep(16000);
                             Dispatcher.Invoke(() =>
                             {
                                 StartStopBtn.IsEnabled = false;
                             });
 
-                            App.rootHub.Start();
+                            Program.rootHub.LogDebug(DS4WinWPF.Translations.Strings.WakeupFromSuspend);
+                            //Program.rootHub.LogDebug($"{Thread.CurrentThread.ManagedThreadId}");
+
+                            //Thread.Sleep(60000);
+                            //App.rootHub.Start();
+
+                            //Task startupTask = Task.Run(() =>
+                            Task startupTask = Task.Delay(5000).ContinueWith(t =>
+                            {
+                                App.rootHub.Start();
+                            });
+
+                            // Log exceptions that might occur
+                            Util.LogAssistBackgroundTask(startupTask);
                         }
                     }
 
@@ -489,10 +525,10 @@ Suspend support not enabled.", true);
 
                         if (App.rootHub.running)
                         {
-                            Dispatcher.Invoke(() =>
-                            {
-                                StartStopBtn.IsEnabled = false;
-                            });
+                            //Dispatcher.Invoke(() =>
+                            //{
+                            //    StartStopBtn.IsEnabled = false;
+                            //});
 
                             App.rootHub.Stop(immediateUnplug: true);
                             wasrunning = true;
@@ -937,12 +973,25 @@ Suspend support not enabled.", true);
             autoProfilesTimer.Stop();
             //autoProfileHolder.Save();
             Util.UnregisterNotify(regHandle);
+
+            // Attempt to dispose of notify icon early
+            if (notifyIcon != null)
+            {
+                notifyIcon.Dispose();
+                notifyIcon = null;
+            }
+
             Application.Current.Shutdown();
         }
 
         protected override void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
+
+            if (!Global.firstRun)
+            {
+                WindowPlacementHelper.ApplyPlacement(this, startMinimized);
+            }
 
             HwndSource source = PresentationSource.FromVisual(this) as HwndSource;
             HookWindowMessages(source);
@@ -1096,7 +1145,17 @@ Suspend support not enabled.", true);
                                         }
                                         else
                                         {
-                                            Global.LoadTempProfile(tdevice, strData[2], true, Program.rootHub);
+                                            Task.Run(() =>
+                                            {
+                                                DS4Device device = conLvViewModel.ControllerCol[tdevice].Device;
+                                                if (device != null)
+                                                {
+                                                    device.HaltReportingRunAction(() =>
+                                                    {
+                                                        Global.LoadTempProfile(tdevice, strData[2], true, Program.rootHub);
+                                                    });
+                                                }
+                                            }).Wait();
                                         }
 
                                         DS4Device device = conLvViewModel.ControllerCol[tdevice].Device;
@@ -1249,7 +1308,7 @@ Suspend support not enabled.", true);
             controllerLV.SelectedIndex = idx;
             CompositeDeviceModel item = conLvViewModel.CurrentItem;
 
-            if (item != null)
+            if (item != null && item.SelectedIndex != -1)
             {
                 ProfileEntity entity = profileListHolder.ProfileListCol[item.SelectedIndex];
                 ShowProfileEditor(idx, entity);
@@ -1305,7 +1364,7 @@ Suspend support not enabled.", true);
             if (!status)
             {
                 App.rootHub.ChangeMotionEventStatus(status);
-                await Task.Delay(100).ContinueWith((t) =>
+                await Task.Delay(200).ContinueWith((t) =>
                 {
                     App.rootHub.ChangeUDPStatus(status);
                 });
@@ -1313,7 +1372,7 @@ Suspend support not enabled.", true);
             else
             {
                 Program.rootHub.ChangeUDPStatus(status);
-                await Task.Delay(100).ContinueWith((t) =>
+                await Task.Delay(200).ContinueWith((t) =>
                 {
                     App.rootHub.ChangeMotionEventStatus(status);
                 });
@@ -1360,7 +1419,6 @@ Suspend support not enabled.", true);
                     temp.WaitForExit();
                     Global.RefreshHidHideInfo();
                     Global.RefreshFakerInputInfo();
-                    Program.rootHub.RefreshOutputKBMHandler();
 
                     settingsWrapVM.DriverCheckRefresh();
                 }
@@ -1497,21 +1555,19 @@ Suspend support not enabled.", true);
 
         private void MainDS4Window_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if (WindowState != WindowState.Minimized && preserveSize)
+            if (WindowState != WindowState.Minimized && preserveSize && !IsInitialShow)
             {
-                Global.FormWidth = Convert.ToInt32(Width);
-                Global.FormHeight = Convert.ToInt32(Height);
+                var result = WindowPlacementHelper.GetPlacement(this);
+                Global.FormWidth = result.Right - result.Left;
+                Global.FormHeight = result.Bottom - result.Top;
             }
         }
 
         private void MainDS4Window_LocationChanged(object sender, EventArgs e)
         {
-            int left = Convert.ToInt32(Left), top = Convert.ToInt32(Top);
-            if (left >= 0 && top >= 0)
-            {
-                Global.FormLocationX = left;
-                Global.FormLocationY = top;
-            }
+            var result = WindowPlacementHelper.GetPlacement(this);
+            Global.FormLocationX = result.Left;
+            Global.FormLocationY = result.Top;
         }
 
         private void NotifyIcon_TrayMiddleMouseDown(object sender, RoutedEventArgs e)
@@ -1706,22 +1762,22 @@ Suspend support not enabled.", true);
 
     public class ImageLocationPaths
     {
-        public string NewProfile { get => $"/DS4Windows;component/Resources/{App.Current.FindResource("NewProfileImg")}"; }
+        public string NewProfile { get => $"{Global.RESOURCES_PREFIX}/{App.Current.FindResource("NewProfileImg")}"; }
         public event EventHandler NewProfileChanged;
 
-        public string EditProfile { get => $"/DS4Windows;component/Resources/{App.Current.FindResource("EditImg")}"; }
+        public string EditProfile { get => $"{Global.RESOURCES_PREFIX}/{App.Current.FindResource("EditImg")}"; }
         public event EventHandler EditProfileChanged;
 
-        public string DeleteProfile { get => $"/DS4Windows;component/Resources/{App.Current.FindResource("DeleteImg")}"; }
+        public string DeleteProfile { get => $"{Global.RESOURCES_PREFIX}/{App.Current.FindResource("DeleteImg")}"; }
         public event EventHandler DeleteProfileChanged;
 
-        public string DuplicateProfile { get => $"/DS4Windows;component/Resources/{App.Current.FindResource("CopyImg")}"; }
+        public string DuplicateProfile { get => $"{Global.RESOURCES_PREFIX}/{App.Current.FindResource("CopyImg")}"; }
         public event EventHandler DuplicateProfileChanged;
 
-        public string ExportProfile { get => $"/DS4Windows;component/Resources/{App.Current.FindResource("ExportImg")}"; }
+        public string ExportProfile { get => $"{Global.RESOURCES_PREFIX}/{App.Current.FindResource("ExportImg")}"; }
         public event EventHandler ExportProfileChanged;
 
-        public string ImportProfile { get => $"/DS4Windows;component/Resources/{App.Current.FindResource("ImportImg")}"; }
+        public string ImportProfile { get => $"{Global.RESOURCES_PREFIX}/{App.Current.FindResource("ImportImg")}"; }
         public event EventHandler ImportProfileChanged;
 
         public ImageLocationPaths()
